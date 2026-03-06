@@ -30,6 +30,7 @@ local BOX_VISIBLE = true
 local targetKnocked = false
 local selfKnocked = false
 local camBox = nil
+local espLabels = {}
 local screenGui = Instance.new("ScreenGui")
 screenGui.Name = "bwq2"
 screenGui.ResetOnSpawn = false
@@ -72,6 +73,130 @@ local function updateDebugGUI()
         targetLabel.TextColor3 = Color3.new(0.7, 0.7, 0.7) -- Red color
     end
 end
+
+local function addESPToPlayer(player)
+    if player == LocalPlayer then return end
+    
+    local esp = {
+        player = player,
+        nameTag = Drawing.new("Text"),
+    }
+    
+    esp.nameTag.Size = 14
+    esp.nameTag.Center = true
+    esp.nameTag.Outline = true
+    esp.nameTag.OutlineColor = Color3.fromRGB(0, 0, 0)
+    esp.nameTag.Color = shared.config['ESP']['Color']
+    esp.nameTag.Font = Drawing.Fonts.Plex
+    esp.nameTag.Visible = false
+    esp.nameTag.ZIndex = 1000
+    
+    espLabels[player.UserId] = esp
+end
+
+local function removeESPFromPlayer(player)
+    local esp = espLabels[player.UserId]
+    if esp then
+        esp.nameTag:Remove()
+        espLabels[player.UserId] = nil
+    end
+end
+
+local function refreshESP()
+    if not shared.config['ESP']['Enabled'] then
+        for _, esp in pairs(espLabels) do
+            esp.nameTag.Visible = false
+        end
+        return
+    end
+    
+    for userId, esp in pairs(espLabels) do
+        local player = esp.player
+        if not player or not player.Parent then
+            esp.nameTag.Visible = false
+            esp.nameTag:Remove()
+            espLabels[userId] = nil
+            continue
+        end
+        
+        if player.Character and player.Character.Parent and player.Character:FindFirstChild("HumanoidRootPart") and player.Character:FindFirstChild("Head") then
+            local humanoid = player.Character:FindFirstChildOfClass("Humanoid")
+            if not humanoid or humanoid.Health <= 0 then
+                esp.nameTag.Visible = false
+                continue
+            end
+            
+            local head = player.Character.Head
+            local rootPart = player.Character.HumanoidRootPart
+            
+            local espPosition, onScreen
+            if shared.config['ESP']['Name Above'] then
+                espPosition, onScreen = Camera:WorldToViewportPoint(head.Position + Vector3.new(0, 1.5, 0))
+            else
+                espPosition, onScreen = Camera:WorldToViewportPoint(rootPart.Position - Vector3.new(0, 2.8, 0))
+            end
+            
+            if onScreen and espPosition.Z > 0 then
+                esp.nameTag.Position = Vector2.new(espPosition.X, espPosition.Y)
+                
+                if shared.config['ESP']['Use Display Name'] then
+                    esp.nameTag.Text = player.DisplayName
+                else
+                    esp.nameTag.Text = player.Name
+                end
+                
+                -- Check if this player is the current target
+                if lockedPlayer == player then
+                    esp.nameTag.Color = shared.config['ESP']['Target Color']
+                else
+                    esp.nameTag.Color = shared.config['ESP']['Color']
+                end
+                
+                esp.nameTag.Visible = true
+            else
+                esp.nameTag.Visible = false
+            end
+        else
+            esp.nameTag.Visible = false
+        end
+    end
+end
+
+for _, player in pairs(Players:GetPlayers()) do
+    if player ~= LocalPlayer and player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
+        addESPToPlayer(player)
+    end
+    
+    player.CharacterAdded:Connect(function(char)
+        removeESPFromPlayer(player)
+        char:WaitForChild("HumanoidRootPart")
+        task.wait(0.1)
+        addESPToPlayer(player)
+    end)
+    
+    player.CharacterRemoving:Connect(function()
+        removeESPFromPlayer(player)
+    end)
+end
+
+Players.PlayerAdded:Connect(function(player)
+    if player ~= LocalPlayer then
+        player.CharacterAdded:Connect(function(char)
+            removeESPFromPlayer(player)
+            char:WaitForChild("HumanoidRootPart")
+            task.wait(0.1)
+            addESPToPlayer(player)
+        end)
+        
+        player.CharacterRemoving:Connect(function()
+            removeESPFromPlayer(player)
+        end)
+    end
+end)
+
+Players.PlayerRemoving:Connect(function(player)
+    removeESPFromPlayer(player)
+end)
 
 local ShotgunNames = { 
     ["Double-Barrel SG"] = true, 
@@ -583,6 +708,15 @@ UserInput.InputBegan:Connect(LPH_NO_VIRTUALIZE(function(inp, gp)
         end
     end
 
+    if inp.KeyCode == Enum.KeyCode[shared.config['ESP']['Activation']['Activation Bind']] then
+        local mode = shared.config['ESP']['Activation']['Activation Mode']
+        if mode == "Toggle" then
+            shared.config['ESP']['Enabled'] = not shared.config['ESP']['Enabled']
+        elseif mode == "Hold" then
+            shared.config['ESP']['Enabled'] = true
+        end
+    end
+
     local bind = shared.config['Trigger Bot']['Activation']['Activation Bind']
     if inp.KeyCode == Enum.KeyCode[bind] then
         local mode = shared.config['Trigger Bot']['Activation']['Activation Mode']
@@ -596,6 +730,14 @@ end))
 
 UserInput.InputEnded:Connect(LPH_NO_VIRTUALIZE(function(inp, gp)
     if gp then return end
+    
+    if inp.KeyCode == Enum.KeyCode[shared.config['ESP']['Activation']['Activation Bind']] then
+        local mode = shared.config['ESP']['Activation']['Activation Mode']
+        if mode == "Hold" then
+            shared.config['ESP']['Enabled'] = false
+        end
+    end
+    
     local bind = shared.config['Trigger Bot']['Activation']['Activation Bind']
     if inp.KeyCode == Enum.KeyCode[bind] then
         triggerKeyDown = false
@@ -859,6 +1001,7 @@ then
     end
 end
 updateDebugGUI()
+refreshESP()
 end))
 if shared.config['Console'] == true then
     print("✅> Loaded") 
