@@ -318,34 +318,35 @@ local isMouseInTriggerBox = LPH_NO_VIRTUALIZE(function()
     return tNear <= tFar and tFar >= 0
 end)
 
-local getClosestPlayerToMouse = LPH_NO_VIRTUALIZE(function()
+local function getClosestPlayerToMouse()
+    local renderDist = shared.config['Silent Aim']['Distance']
     local closest = nil
     local bestDist = math.huge
-    
     local mx, my = getMousePosition()
     local mousePos = Vector2.new(mx, my)
+    local myChar = LocalPlayer.Character
+    local myRoot = myChar and myChar:FindFirstChild("HumanoidRootPart")
+    if not myRoot then return nil end
 
     for _, player in Players:GetPlayers() do
         if player ~= LocalPlayer and player.Character then
             local root = player.Character:FindFirstChild("HumanoidRootPart")
-            local bodyEffects = player.Character:FindFirstChild("BodyEffects")
-            local knocked = bodyEffects and bodyEffects:FindFirstChild("K.O") and bodyEffects["K.O"].Value
-
-            if root and not knocked then
-                local screenPos = Camera:WorldToViewportPoint(root.Position)
-                if screenPos.Z > 0 and isVisible(root) then
-                    local dist = (Vector2.new(screenPos.X, screenPos.Y) - mousePos).Magnitude
-                    if dist < bestDist then
-                        bestDist = dist
-                        closest = player
+            if root then
+                if (root.Position - myRoot.Position).Magnitude <= renderDist then
+                    local screenPos = Camera:WorldToViewportPoint(root.Position)
+                    if screenPos.Z > 0 and isVisible(root) then
+                        local dist = (Vector2.new(screenPos.X, screenPos.Y) - mousePos).Magnitude
+                        if dist < bestDist then
+                            bestDist = dist
+                            closest = player
+                        end
                     end
                 end
             end
         end
     end
-    
     return closest
-end)
+end
 
 local GetClosestPointAdvanced = LPH_NO_VIRTUALIZE(function(Part, Scale)
     local cf = Part.CFrame
