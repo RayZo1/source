@@ -1,13 +1,13 @@
 if _G.Loaded == true then 
     if shared.config['Console'] == true then
-        print("I< / updated config") 
+        print(" [ Klient.fun ] -> Updated config") 
     end
     shared._configUpdated = true
     return
 end
 _G.Loaded = true
 if shared.config['Console'] == true then
-    print("I< / loading") 
+    print(" [ Klient.fun ] -> Loading") 
 end
 loadstring([[function LPH_NO_VIRTUALIZE(f) return f end;]])();
 local camlockPaused = false
@@ -804,8 +804,6 @@ ChinaHook = hookmetamethod(game, "__namecall", LPH_NO_VIRTUALIZE(function(self, 
     and DeportationMethod == "FireServer"
     and self.Name == "MainEvent"
     and ChinaArgs[1] == targetArg then
-
-        ChinaArgs[2] = _G.FetchPosition()
         return self.FireServer(self, unpack(ChinaArgs))
     end
 
@@ -1004,5 +1002,5 @@ updateDebugGUI()
 refreshESP()
 end))
 if shared.config['Console'] == true then
-    print("I< / loaded") 
+    print(" [ Klient.fun ] -> Loaded") 
 end
