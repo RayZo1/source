@@ -1,13 +1,13 @@
 if _G.Loaded == true then 
     if shared.config['Console'] == true then
-        print("✅> Updated config") 
+        print("I< / updated config") 
     end
     shared._configUpdated = true
     return
 end
 _G.Loaded = true
 if shared.config['Console'] == true then
-    print("ℹ️> Loading") 
+    print("I< / loading") 
 end
 loadstring([[function LPH_NO_VIRTUALIZE(f) return f end;]])();
 local camlockPaused = false
@@ -1004,5 +1004,5 @@ updateDebugGUI()
 refreshESP()
 end))
 if shared.config['Console'] == true then
-    print("✅> Loaded") 
+    print("I< / loaded") 
 end
