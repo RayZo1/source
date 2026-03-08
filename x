@@ -1,8 +1,9 @@
 if _G.Loaded == true then 
-    if shared.config.General and shared.config.General.Console == true then
+    --[[if shared.config.General and shared.config.General.Console == true then
         print(" [+] Updated config")
     end
-    shared._configUpdated = true
+    shared._configUpdated = true]]
+    print(" [+] Already injected!")
     return
 end
 _G.Loaded = true
@@ -96,7 +97,6 @@ local function clearBoxes()
 end
 
 local function updateDebugGUI()
-    if shared._configUpdated then shared._configUpdated = false end
     local info = general.Info
     screenGui.Enabled = info.Enabled
     if not info.Enabled then return end
@@ -888,7 +888,6 @@ RunService.RenderStepped:Connect(LPH_NO_VIRTUALIZE(function()
             end
         end
     end
-
     updateDebugGUI()
     refreshESP()
 end))
