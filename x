@@ -30,9 +30,7 @@ local MainConfig = DataStructs.General
 local ModuleB = DataStructs['Silent Aim']
 local ModuleC = DataStructs['Camera Aimbot']
 local ModuleD = DataStructs['Trigger Bot']
-local ModulePanic = MainConfig['Panic']
-local ModuleRaid = DataStructs['Raid Awareness']
-local ModuleMod = DataStructs['Player Modification']
+local ModuleE = DataStructs['ESP']
 local FilterA = DataStructs.Conditions["Whilst a player is selected"]
 local FilterB = DataStructs.Conditions["Whilst selecting a player"]
 
@@ -47,9 +45,7 @@ local ZoneA = nil
 local ZoneA_Visible = true
 local ZoneCamera = nil
 local ZoneTrigger = nil
-local RaidTargets = {}
-local RaidDrawings = {}
-local IsPanicking = false
+local InterfaceLabels = {}
 
 -- UI Registry
 local UserLayer = Instance.new("ScreenGui")
@@ -104,124 +100,118 @@ local function ProcessUIUpdate()
     end
 end
 
-local function AddRaidTarget(player)
-    if player == LocalClient or RaidTargets[player.UserId] then return end
-    RaidTargets[player.UserId] = player
-    
-    local drawings = {
-        box = Drawing.new("Square"),
-        name = Drawing.new("Text"),
-        healthBg = Drawing.new("Line"),
-        healthFg = Drawing.new("Line")
+local function RegisterEntity(instanceNode)
+    if instanceNode == LocalClient then return end
+    local interfaceObject = {
+        node = instanceNode,
+        labelTag = Drawing.new("Text"),
     }
-    
-    drawings.box.Thickness = 1
-    drawings.box.Filled = false
-    drawings.box.Transparency = 1
-    
-    drawings.name.Size = 14
-    drawings.name.Center = true
-    drawings.name.Outline = true
-    drawings.name.OutlineColor = Color3.new(0,0,0)
-    
-    drawings.healthBg.Thickness = 2
-    drawings.healthBg.Color = Color3.new(0,0,0)
-    
-    drawings.healthFg.Thickness = 2
-    
-    RaidDrawings[player.UserId] = drawings
+    interfaceObject.labelTag.Size = 14
+    interfaceObject.labelTag.Center = true
+    interfaceObject.labelTag.Outline = true
+    interfaceObject.labelTag.OutlineColor = Color3.fromRGB(0,0,0)
+    interfaceObject.labelTag.Color = ModuleE.Color
+    interfaceObject.labelTag.Font = Drawing.Fonts.Plex
+    interfaceObject.labelTag.Visible = false
+    interfaceObject.labelTag.ZIndex = 1000
+    InterfaceLabels[instanceNode.UserId] = interfaceObject
 end
 
-local function RemoveRaidTarget(player)
-    RaidTargets[player.UserId] = nil
-    if RaidDrawings[player.UserId] then
-        for _, d in pairs(RaidDrawings[player.UserId]) do
-            d:Remove()
-        end
-        RaidDrawings[player.UserId] = nil
+local function UnregisterEntity(instanceNode)
+    local interfaceObject = InterfaceLabels[instanceNode.UserId]
+    if interfaceObject then
+        interfaceObject.labelTag:Remove()
+        InterfaceLabels[instanceNode.UserId] = nil
     end
 end
 
 local function DispatchEntityRenders()
-    if not ModuleRaid.Enabled or IsPanicking then
-        for _, dObjs in pairs(RaidDrawings) do
-            for _, d in pairs(dObjs) do d.Visible = false end
+    if not ModuleE.Enabled then
+        for _, interfaceObject in pairs(InterfaceLabels) do
+            interfaceObject.labelTag.Visible = false
         end
         return
     end
-    
-    for uid, player in pairs(RaidTargets) do
-        local d = RaidDrawings[uid]
-        if not player or not player.Parent or not player.Character or not player.Character:FindFirstChild("HumanoidRootPart") then
-            if d then for _, x in pairs(d) do x.Visible = false end end
+    for identityId, interfaceObject in pairs(InterfaceLabels) do
+        local instanceNode = interfaceObject.node
+        if not instanceNode or not instanceNode.Parent then
+            interfaceObject.labelTag.Visible = false
+            interfaceObject.labelTag:Remove()
+            InterfaceLabels[identityId] = nil
             continue
         end
         
-        local char = player.Character
-        local head = char:FindFirstChild("Head")
-        local root = char.HumanoidRootPart
-        local hum = char:FindFirstChildOfClass("Humanoid")
-        
-        if not head or not root or not hum or hum.Health <= 0 then
-            if d then for _, x in pairs(d) do x.Visible = false end end
-            continue
-        end
-        
-        local dist = (ActiveCamera.CFrame.Position - root.Position).Magnitude
-        if dist > (ModuleRaid['Max Render Distance'] or 250) then
-            if d then for _, x in pairs(d) do x.Visible = false end end
-            continue
-        end
-        
-        local rootPos, onScreen = ActiveCamera:WorldToViewportPoint(root.Position)
-        local headPos, _ = ActiveCamera:WorldToViewportPoint(head.Position + Vector3.new(0, 0.5, 0))
-        local legPos, _ = ActiveCamera:WorldToViewportPoint(root.Position - Vector3.new(0, 3, 0))
-        
-        if onScreen and rootPos.Z > 0 then
-            local height = math.abs(headPos.Y - legPos.Y)
-            local width = height * 0.6
-            
-            if ModuleRaid.Box.Enabled then
-                d.box.Size = Vector2.new(width, height)
-                d.box.Position = Vector2.new(rootPos.X - width/2, headPos.Y)
-                d.box.Color = ModuleRaid.Box.Color
-                d.box.Visible = true
-            else
-                d.box.Visible = false
+        local entityModel = instanceNode.Character
+        if entityModel and entityModel.Parent and entityModel:FindFirstChild("HumanoidRootPart") and entityModel:FindFirstChild("Head") then
+            local behaviorState = entityModel:FindFirstChildOfClass("Humanoid")
+            if not behaviorState or behaviorState.Health <= 0 then
+                interfaceObject.labelTag.Visible = false
+                continue
             end
             
-            if ModuleRaid.Name.Enabled then
-                d.name.Position = Vector2.new(rootPos.X, headPos.Y - 16)
-                d.name.Text = (ModuleRaid.Name.Type == 'Display' and player.DisplayName) or player.Name
-                d.name.Color = ModuleRaid.Name.Color
-                d.name.Visible = true
+            local cNode = entityModel.Head
+            local baseNode = entityModel.HumanoidRootPart
+            local interfaceCoords, inFrustum
+            
+            if ModuleE['Name Above'] then
+                interfaceCoords, inFrustum = ActiveCamera:WorldToViewportPoint(cNode.Position + Vector3.new(0, 1.5, 0))
             else
-                d.name.Visible = false
+                interfaceCoords, inFrustum = ActiveCamera:WorldToViewportPoint(baseNode.Position - Vector3.new(0, 2.8, 0))
             end
             
-            if ModuleRaid.Health.Enabled then
-                local healthPct = math.clamp(hum.Health / hum.MaxHealth, 0, 1)
-                local barStartX = rootPos.X - width/2 - 6
+            if inFrustum and interfaceCoords.Z > 0 then
+                interfaceObject.labelTag.Position = Vector2.new(interfaceCoords.X, interfaceCoords.Y)
+                if ModuleE['Use Display Name'] then
+                    interfaceObject.labelTag.Text = instanceNode.DisplayName
+                else
+                    interfaceObject.labelTag.Text = instanceNode.Name
+                end
                 
-                d.healthBg.From = Vector2.new(barStartX, headPos.Y + height)
-                d.healthBg.To = Vector2.new(barStartX, headPos.Y)
-                d.healthBg.Visible = true
-                
-                d.healthFg.From = Vector2.new(barStartX, headPos.Y + height)
-                d.healthFg.To = Vector2.new(barStartX, headPos.Y + height - (height * healthPct))
-                d.healthFg.Color = ModuleRaid.Health['Missing Health Color']:Lerp(ModuleRaid.Health['High Health Color'], healthPct)
-                d.healthFg.Visible = true
+                if GlobalInterface == instanceNode then
+                    interfaceObject.labelTag.Color = ModuleE['Target Color']
+                else
+                    interfaceObject.labelTag.Color = ModuleE.Color
+                end
+                interfaceObject.labelTag.Visible = true
             else
-                d.healthBg.Visible = false
-                d.healthFg.Visible = false
+                interfaceObject.labelTag.Visible = false
             end
         else
-            if d then for _, x in pairs(d) do x.Visible = false end end
+            interfaceObject.labelTag.Visible = false
         end
     end
 end
 
-PlayerService.PlayerRemoving:Connect(RemoveRaidTarget)
+for _, participant in pairs(PlayerService:GetPlayers()) do
+    if participant ~= LocalClient and participant.Character and participant.Character:FindFirstChild("HumanoidRootPart") then
+        RegisterEntity(participant)
+    end
+    participant.CharacterAdded:Connect(function(model)
+        UnregisterEntity(participant)
+        model:WaitForChild("HumanoidRootPart")
+        task.wait(0.1)
+        RegisterEntity(participant)
+    end)
+    participant.CharacterRemoving:Connect(function()
+        UnregisterEntity(participant)
+    end)
+end
+
+PlayerService.PlayerAdded:Connect(function(participant)
+    if participant ~= LocalClient then
+        participant.CharacterAdded:Connect(function(model)
+            UnregisterEntity(participant)
+            model:WaitForChild("HumanoidRootPart")
+            task.wait(0.1)
+            RegisterEntity(participant)
+        end)
+        participant.CharacterRemoving:Connect(function()
+            UnregisterEntity(participant)
+        end)
+    end
+end)
+
+PlayerService.PlayerRemoving:Connect(UnregisterEntity)
 
 -- Affinity Check
 local function ValidateAffinity(entity)
@@ -484,23 +474,6 @@ end
 
 InputProvider.InputBegan:Connect(executeSafely(function(evt, flag)
     if flag then return end
-    if ModulePanic.Enabled and evt.KeyCode == Enum.KeyCode[ModulePanic.Keybind] then
-        IsPanicking = not IsPanicking
-        if IsPanicking then
-            GlobalInterface = nil
-            TrackingInterface = nil
-            ResetVisualNodes()
-            for _, dObjs in pairs(RaidDrawings) do
-                for _, d in pairs(dObjs) do d.Visible = false end
-            end
-            if MainConfig.Console then print(" [+] Panic Enabled") end
-        else
-            if MainConfig.Console then print(" [-] Panic Disabled") end
-        end
-    end
-
-    if IsPanicking then return end
-    
     if evt.KeyCode == Enum.KeyCode[MainConfig.Toggle] then
         if GlobalInterface then
             GlobalInterface = nil
@@ -516,40 +489,10 @@ InputProvider.InputBegan:Connect(executeSafely(function(evt, flag)
         end
     end
     
-    if ModuleRaid.Enabled then
-        if evt.KeyCode == Enum.KeyCode[ModuleRaid.Binds['Add Target']] then
-            local targetEntity = GetOptimalCandidate()
-            if targetEntity then AddRaidTarget(targetEntity) end
-        elseif evt.KeyCode == Enum.KeyCode[ModuleRaid.Binds['Remove Target']] then
-            local targetEntity = GetOptimalCandidate()
-            if targetEntity then RemoveRaidTarget(targetEntity) end
-        end
-    end
-    
-    if ModuleMod.InventorySorter.Enabled and evt.KeyCode == Enum.KeyCode[ModuleMod.InventorySorter.Keybind] then
-        local bp = LocalClient:FindFirstChild("Backpack")
-        local char = LocalClient.Character
-        if bp and char then
-            local order = ModuleMod.InventorySorter.Order
-            local items = bp:GetChildren()
-            local equipped = char:FindFirstChildOfClass("Tool")
-            if equipped then table.insert(items, equipped) end
-            
-            table.sort(items, function(a, b)
-                local idxA = 999
-                local idxB = 999
-                for i = 1, #order do
-                    if a.Name:find(order[i]:gsub("[%[%]]", "")) then idxA = i end
-                    if b.Name:find(order[i]:gsub("[%[%]]", "")) then idxB = i end
-                end
-                return idxA < idxB
-            end)
-            
-            for _, item in ipairs(items) do
-                item.Parent = char
-                item.Parent = bp
-            end
-        end
+    if evt.KeyCode == Enum.KeyCode[ModuleE.Activation['Activation Bind']] then
+        local modeSelect = ModuleE.Activation['Activation Mode']
+        if modeSelect == "Toggle" then ModuleE.Enabled = not ModuleE.Enabled
+        elseif modeSelect == "Hold" then ModuleE.Enabled = true end
     end
     
     if evt.KeyCode == Enum.KeyCode[ModuleD.Activation['Activation Bind']] then
@@ -561,6 +504,9 @@ end))
 
 InputProvider.InputEnded:Connect(executeSafely(function(evt, flag)
     if flag then return end
+    if evt.KeyCode == Enum.KeyCode[ModuleE.Activation['Activation Bind']] and ModuleE.Activation['Activation Mode'] == "Hold" then
+        ModuleE.Enabled = false
+    end
     if evt.KeyCode == Enum.KeyCode[ModuleD.Activation['Activation Bind']] then
         SignalActive = false
     end
@@ -624,32 +570,6 @@ end))
 -- Core Runtime Thread
 ExecutionLoop.RenderStepped:Connect(executeSafely(function()
     ActiveCamera = WorldSpace.CurrentCamera -- Cache refresh
-    
-    if not IsPanicking and ModuleMod.Movement.Enabled and LocalClient.Character then
-        local hum = LocalClient.Character:FindFirstChildOfClass("Humanoid")
-        if hum then
-            if ModuleMod.Movement['Speed Modifications'].Enabled then
-                if InputProvider:IsKeyDown(Enum.KeyCode[ModuleMod.Movement['Speed Modifications'].Keybind]) then
-                    hum.WalkSpeed = 16 + ModuleMod.Movement['Speed Modifications'].Value
-                else
-                    hum.WalkSpeed = 16
-                end
-            end
-            if ModuleMod.Movement['Jump Modifications'].Enabled then
-                if InputProvider:IsKeyDown(Enum.KeyCode[ModuleMod.Movement['Jump Modifications'].Keybind]) then
-                    hum.JumpPower = 50 + ModuleMod.Movement['Jump Modifications'].Value
-                else
-                    hum.JumpPower = 50
-                end
-            end
-        end
-    end
-    
-    if IsPanicking then 
-        ProcessUIUpdate()
-        DispatchEntityRenders()
-        return 
-    end
     
     if MainConfig.Mode == 'Target' and GlobalInterface then
         local sObj = LocalClient.Character
