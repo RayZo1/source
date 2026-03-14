@@ -1,14 +1,14 @@
 -- Configuration Validator and Event Poller
 if _G.SessionStarted == true then 
     if shared.config.General and shared.config.General.Console == true then
-        print(" [+] Config Synchronized")
+        print(" [+] Synchronized")
     end
     shared._configUpdated = true
     return
 end
 _G.SessionStarted = true
 if shared.config.General and shared.config.General.Console == true then
-    print(" [+] Initializing Subsystems")
+    print(" [+] Initializing")
 end
 
 local function executeSafely(delegate) return delegate end;
@@ -59,7 +59,7 @@ OutputDisplay.Name = "OutputDisplay_Runtime"
 OutputDisplay.Size = UDim2.new(0, 200, 0, 20)
 OutputDisplay.Position = UDim2.new(0, MainConfig.Info.Position.X, 0, MainConfig.Info.Position.Y)
 OutputDisplay.BackgroundTransparency = 1
-OutputDisplay.Text = "system: Idle"
+OutputDisplay.Text = ""
 OutputDisplay.TextColor3 = Color3.new(1, 1, 1)
 OutputDisplay.TextStrokeTransparency = 0.8
 OutputDisplay.Font = Enum.Font.Gotham
@@ -92,10 +92,10 @@ local function ProcessUIUpdate()
     
     if GlobalInterface and GlobalInterface.Character then
         local displayString = GlobalInterface.DisplayName or GlobalInterface.Name
-        OutputDisplay.Text = "system: " .. displayString
+        OutputDisplay.Text = "target: " .. displayString
         OutputDisplay.TextColor3 = Color3.new(1, 1, 1)
     else
-        OutputDisplay.Text = "system: Idle"
+        OutputDisplay.Text = "target: Idle"
         OutputDisplay.TextColor3 = Color3.new(0.7, 0.7, 0.7)
     end
 end
@@ -705,5 +705,5 @@ ExecutionLoop.RenderStepped:Connect(executeSafely(function()
     DispatchEntityRenders()
 end))
 
-if MainConfig and MainConfig.Console then print(" [+] Subsystems Active") end
+if MainConfig and MainConfig.Console then print(" [+] Active") end
 if MainConfig and MainConfig.FpsUnlocker and setfpscap then setfpscap(999) end
