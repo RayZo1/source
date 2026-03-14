@@ -1,896 +1,709 @@
-if _G.Loaded == true then 
-    --[[if shared.config.General and shared.config.General.Console == true then
-        print(" [+] Updated config")
+-- Configuration Validator and Event Poller
+if _G.SessionStarted == true then 
+    if shared.config.General and shared.config.General.Console == true then
+        print(" [+] Config Synchronized")
     end
-    shared._configUpdated = true]]
-    print(" [+] Already injected!")
+    shared._configUpdated = true
     return
 end
-_G.Loaded = true
+_G.SessionStarted = true
 if shared.config.General and shared.config.General.Console == true then
-    print(" [+] Loading")
+    print(" [+] Initializing Subsystems")
 end
 
-loadstring([[function LPH_NO_VIRTUALIZE(f) return f end;]])();
+local function executeSafely(delegate) return delegate end;
 
--- safety
 if not checkcaller then checkcaller = function() return false end end
 
--- services
-local Players = game:GetService("Players")
-local UserInput = game:GetService("UserInputService")
-local Workspace = game:GetService("Workspace")
-local RunService = game:GetService("RunService")
-local Camera = Workspace.CurrentCamera
-local LocalPlayer = Players.LocalPlayer
-local Mouse = LocalPlayer:GetMouse()
+-- Core Providers
+local PlayerService = game:GetService("Players")
+local InputProvider = game:GetService("UserInputService")
+local WorldSpace = game:GetService("Workspace")
+local ExecutionLoop = game:GetService("RunService")
+local ActiveCamera = WorldSpace.CurrentCamera
+local LocalClient = PlayerService.LocalPlayer
+local PrimaryController = LocalClient:GetMouse()
 
--- config cache
-local cfg = shared.config
-local general = cfg.General
-local silentCfg = cfg['Silent Aim']
-local camCfg = cfg['Camera Aimbot']
-local triggerCfg = cfg['Trigger Bot']
-local espCfg = cfg['ESP']
-local condSelected = cfg.Conditions["Whilst a player is selected"]
-local condSelecting = cfg.Conditions["Whilst selecting a player"]
+-- Cache Nodes
+local DataStructs = shared.config
+local MainConfig = DataStructs.General
+local ModuleB = DataStructs['Silent Aim']
+local ModuleC = DataStructs['Camera Aimbot']
+local ModuleD = DataStructs['Trigger Bot']
+local ModuleE = DataStructs['ESP']
+local FilterA = DataStructs.Conditions["Whilst a player is selected"]
+local FilterB = DataStructs.Conditions["Whilst selecting a player"]
 
--- state
-local camlockPaused = false
-local cameraTarget = nil
-local triggerBox = nil
-local lastActivationTime = 0
-local triggerKeyDown = false
-local triggerToggled = false
-local lockedPlayer = nil
-local originalIndex
-local box = nil
-local BOX_VISIBLE = true
-local targetKnocked = false
-local selfKnocked = false
-local camBox = nil
-local espLabels = {}
+-- Execution State
+local GlobalInterface = nil
+local TrackingInterface = nil
+local ActivationTimestamp = 0
+local SignalActive = false
+local SignalToggled = false
+local OriginalIndexHandler
+local ZoneA = nil
+local ZoneA_Visible = true
+local ZoneCamera = nil
+local ZoneTrigger = nil
+local InterfaceLabels = {}
 
--- gui
-local screenGui = Instance.new("ScreenGui")
-screenGui.Name = "bwq2"
-screenGui.ResetOnSpawn = false
-screenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
-screenGui.Parent = game:GetService("CoreGui")
+-- UI Registry
+local UserLayer = Instance.new("ScreenGui")
+UserLayer.Name = "UserLayer_Runtime"
+UserLayer.ResetOnSpawn = false
+UserLayer.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+UserLayer.Parent = game:GetService("CoreGui")
 
-local targetLabel = Instance.new("TextLabel")
-targetLabel.Name = "zxcxwa2"
-targetLabel.Size = UDim2.new(0, 200, 0, 20)
-targetLabel.Position = UDim2.new(0, general.Info.Position.X, 0, general.Info.Position.Y)
-targetLabel.BackgroundTransparency = 1
-targetLabel.Text = "target: None"
-targetLabel.TextColor3 = Color3.new(1, 1, 1)
-targetLabel.TextStrokeTransparency = 0.8
-targetLabel.Font = Enum.Font.Gotham
-targetLabel.TextSize = 14
-targetLabel.TextXAlignment = Enum.TextXAlignment.Left
-targetLabel.RichText = true
-targetLabel.Parent = screenGui
+local OutputDisplay = Instance.new("TextLabel")
+OutputDisplay.Name = "OutputDisplay_Runtime"
+OutputDisplay.Size = UDim2.new(0, 200, 0, 20)
+OutputDisplay.Position = UDim2.new(0, MainConfig.Info.Position.X, 0, MainConfig.Info.Position.Y)
+OutputDisplay.BackgroundTransparency = 1
+OutputDisplay.Text = "system: Idle"
+OutputDisplay.TextColor3 = Color3.new(1, 1, 1)
+OutputDisplay.TextStrokeTransparency = 0.8
+OutputDisplay.Font = Enum.Font.Gotham
+OutputDisplay.TextSize = 14
+OutputDisplay.TextXAlignment = Enum.TextXAlignment.Left
+OutputDisplay.RichText = true
+OutputDisplay.Parent = UserLayer
 
--- reusable raycast params
-local raycastParams = RaycastParams.new()
-raycastParams.FilterType = Enum.RaycastFilterType.Blacklist
-raycastParams.IgnoreWater = true
+-- Cached Math/Physics Parameters
+local GlobalRayParams = RaycastParams.new()
+GlobalRayParams.FilterType = Enum.RaycastFilterType.Blacklist
+GlobalRayParams.IgnoreWater = true
 
--- fov cache
-local fovCache = {
-    silent = { base = Vector3.new(4,6,2), shotguns = Vector3.new(6,8,3), pistols = Vector3.new(4,5,2) },
-    cam = { base = Vector3.new(4,6,2), shotguns = Vector3.new(15,9,15), pistols = Vector3.new(15,8,15) }
-}
-local lastWeaponFOV = nil
-local lastWeaponName = nil
+-- Pre-compiled Lookups
+local TypeClassA = { ["Double-Barrel SG"] = true, ["TacticalShotgun"] = true, ["Shotgun"] = true, ["DrumShotgun"] = true }
+local TypeClassB = { ["Revolver"] = true, ["Silencer"] = true, ["Glock"] = true }
 
--- weapon type tables
-local ShotgunNames = { ["Double-Barrel SG"] = true, ["TacticalShotgun"] = true, ["Shotgun"] = true, ["DrumShotgun"] = true }
-local PistolNames = { ["Revolver"] = true, ["Silencer"] = true, ["Glock"] = true }
-
--- helper: clear all boxes
-local function clearBoxes()
-    if box then box:Destroy(); box = nil end
-    if camBox then camBox:Destroy(); camBox = nil end
-    if triggerBox then triggerBox:Destroy(); triggerBox = nil end
+local function ResetVisualNodes()
+    if ZoneA then ZoneA:Destroy(); ZoneA = nil end
+    if ZoneCamera then ZoneCamera:Destroy(); ZoneCamera = nil end
+    if ZoneTrigger then ZoneTrigger:Destroy(); ZoneTrigger = nil end
 end
 
-local function updateDebugGUI()
-    local info = general.Info
-    screenGui.Enabled = info.Enabled
-    if not info.Enabled then return end
-    targetLabel.Position = UDim2.new(0, info.Position.X, 0, info.Position.Y)
-    if lockedPlayer and lockedPlayer.Character then
-        local name = lockedPlayer.DisplayName or lockedPlayer.Name
-        targetLabel.Text = "target: " .. name
-        targetLabel.TextColor3 = Color3.new(1,1,1)
+local function ProcessUIUpdate()
+    if shared._configUpdated then shared._configUpdated = false end
+    local configParams = MainConfig.Info
+    UserLayer.Enabled = configParams.Enabled
+    if not configParams.Enabled then return end
+    OutputDisplay.Position = UDim2.new(0, configParams.Position.X, 0, configParams.Position.Y)
+    
+    if GlobalInterface and GlobalInterface.Character then
+        local displayString = GlobalInterface.DisplayName or GlobalInterface.Name
+        OutputDisplay.Text = "system: " .. displayString
+        OutputDisplay.TextColor3 = Color3.new(1, 1, 1)
     else
-        targetLabel.Text = "target: None"
-        targetLabel.TextColor3 = Color3.new(0.7,0.7,0.7)
+        OutputDisplay.Text = "system: Idle"
+        OutputDisplay.TextColor3 = Color3.new(0.7, 0.7, 0.7)
     end
 end
 
--- ESP
-local function addESPToPlayer(player)
-    if player == LocalPlayer then return end
-    local esp = {
-        player = player,
-        nameTag = Drawing.new("Text"),
+local function RegisterEntity(instanceNode)
+    if instanceNode == LocalClient then return end
+    local interfaceObject = {
+        node = instanceNode,
+        labelTag = Drawing.new("Text"),
     }
-    esp.nameTag.Size = 14
-    esp.nameTag.Center = true
-    esp.nameTag.Outline = true
-    esp.nameTag.OutlineColor = Color3.fromRGB(0,0,0)
-    esp.nameTag.Color = espCfg.Color
-    esp.nameTag.Font = Drawing.Fonts.Plex
-    esp.nameTag.Visible = false
-    esp.nameTag.ZIndex = 1000
-    espLabels[player.UserId] = esp
+    interfaceObject.labelTag.Size = 14
+    interfaceObject.labelTag.Center = true
+    interfaceObject.labelTag.Outline = true
+    interfaceObject.labelTag.OutlineColor = Color3.fromRGB(0,0,0)
+    interfaceObject.labelTag.Color = ModuleE.Color
+    interfaceObject.labelTag.Font = Drawing.Fonts.Plex
+    interfaceObject.labelTag.Visible = false
+    interfaceObject.labelTag.ZIndex = 1000
+    InterfaceLabels[instanceNode.UserId] = interfaceObject
 end
 
-local function removeESPFromPlayer(player)
-    local esp = espLabels[player.UserId]
-    if esp then
-        esp.nameTag:Remove()
-        espLabels[player.UserId] = nil
+local function UnregisterEntity(instanceNode)
+    local interfaceObject = InterfaceLabels[instanceNode.UserId]
+    if interfaceObject then
+        interfaceObject.labelTag:Remove()
+        InterfaceLabels[instanceNode.UserId] = nil
     end
 end
 
-local function refreshESP()
-    if not espCfg.Enabled then
-        for _, esp in pairs(espLabels) do
-            esp.nameTag.Visible = false
+local function DispatchEntityRenders()
+    if not ModuleE.Enabled then
+        for _, interfaceObject in pairs(InterfaceLabels) do
+            interfaceObject.labelTag.Visible = false
         end
         return
     end
-    for userId, esp in pairs(espLabels) do
-        local player = esp.player
-        if not player or not player.Parent then
-            esp.nameTag.Visible = false
-            esp.nameTag:Remove()
-            espLabels[userId] = nil
+    for identityId, interfaceObject in pairs(InterfaceLabels) do
+        local instanceNode = interfaceObject.node
+        if not instanceNode or not instanceNode.Parent then
+            interfaceObject.labelTag.Visible = false
+            interfaceObject.labelTag:Remove()
+            InterfaceLabels[identityId] = nil
             continue
         end
-        if player.Character and player.Character.Parent and player.Character:FindFirstChild("HumanoidRootPart") and player.Character:FindFirstChild("Head") then
-            local humanoid = player.Character:FindFirstChildOfClass("Humanoid")
-            if not humanoid or humanoid.Health <= 0 then
-                esp.nameTag.Visible = false
+        
+        local entityModel = instanceNode.Character
+        if entityModel and entityModel.Parent and entityModel:FindFirstChild("HumanoidRootPart") and entityModel:FindFirstChild("Head") then
+            local behaviorState = entityModel:FindFirstChildOfClass("Humanoid")
+            if not behaviorState or behaviorState.Health <= 0 then
+                interfaceObject.labelTag.Visible = false
                 continue
             end
-            local head = player.Character.Head
-            local rootPart = player.Character.HumanoidRootPart
-            local espPosition, onScreen
-            if espCfg['Name Above'] then
-                espPosition, onScreen = Camera:WorldToViewportPoint(head.Position + Vector3.new(0,1.5,0))
+            
+            local cNode = entityModel.Head
+            local baseNode = entityModel.HumanoidRootPart
+            local interfaceCoords, inFrustum
+            
+            if ModuleE['Name Above'] then
+                interfaceCoords, inFrustum = ActiveCamera:WorldToViewportPoint(cNode.Position + Vector3.new(0, 1.5, 0))
             else
-                espPosition, onScreen = Camera:WorldToViewportPoint(rootPart.Position - Vector3.new(0,2.8,0))
+                interfaceCoords, inFrustum = ActiveCamera:WorldToViewportPoint(baseNode.Position - Vector3.new(0, 2.8, 0))
             end
-            if onScreen and espPosition.Z > 0 then
-                esp.nameTag.Position = Vector2.new(espPosition.X, espPosition.Y)
-                if espCfg['Use Display Name'] then
-                    esp.nameTag.Text = player.DisplayName
+            
+            if inFrustum and interfaceCoords.Z > 0 then
+                interfaceObject.labelTag.Position = Vector2.new(interfaceCoords.X, interfaceCoords.Y)
+                if ModuleE['Use Display Name'] then
+                    interfaceObject.labelTag.Text = instanceNode.DisplayName
                 else
-                    esp.nameTag.Text = player.Name
+                    interfaceObject.labelTag.Text = instanceNode.Name
                 end
-                if lockedPlayer == player then
-                    esp.nameTag.Color = espCfg['Target Color']
+                
+                if GlobalInterface == instanceNode then
+                    interfaceObject.labelTag.Color = ModuleE['Target Color']
                 else
-                    esp.nameTag.Color = espCfg.Color
+                    interfaceObject.labelTag.Color = ModuleE.Color
                 end
-                esp.nameTag.Visible = true
+                interfaceObject.labelTag.Visible = true
             else
-                esp.nameTag.Visible = false
+                interfaceObject.labelTag.Visible = false
             end
         else
-            esp.nameTag.Visible = false
+            interfaceObject.labelTag.Visible = false
         end
     end
 end
 
--- ESP connections
-for _, player in ipairs(Players:GetPlayers()) do
-    if player ~= LocalPlayer and player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
-        addESPToPlayer(player)
+for _, participant in pairs(PlayerService:GetPlayers()) do
+    if participant ~= LocalClient and participant.Character and participant.Character:FindFirstChild("HumanoidRootPart") then
+        RegisterEntity(participant)
     end
-    player.CharacterAdded:Connect(function(char)
-        removeESPFromPlayer(player)
-        char:WaitForChild("HumanoidRootPart")
+    participant.CharacterAdded:Connect(function(model)
+        UnregisterEntity(participant)
+        model:WaitForChild("HumanoidRootPart")
         task.wait(0.1)
-        addESPToPlayer(player)
+        RegisterEntity(participant)
     end)
-    player.CharacterRemoving:Connect(function()
-        removeESPFromPlayer(player)
+    participant.CharacterRemoving:Connect(function()
+        UnregisterEntity(participant)
     end)
 end
 
-Players.PlayerAdded:Connect(function(player)
-    if player ~= LocalPlayer then
-        player.CharacterAdded:Connect(function(char)
-            removeESPFromPlayer(player)
-            char:WaitForChild("HumanoidRootPart")
+PlayerService.PlayerAdded:Connect(function(participant)
+    if participant ~= LocalClient then
+        participant.CharacterAdded:Connect(function(model)
+            UnregisterEntity(participant)
+            model:WaitForChild("HumanoidRootPart")
             task.wait(0.1)
-            addESPToPlayer(player)
+            RegisterEntity(participant)
         end)
-        player.CharacterRemoving:Connect(function()
-            removeESPFromPlayer(player)
+        participant.CharacterRemoving:Connect(function()
+            UnregisterEntity(participant)
         end)
     end
 end)
 
-Players.PlayerRemoving:Connect(removeESPFromPlayer)
+PlayerService.PlayerRemoving:Connect(UnregisterEntity)
 
--- crew check
-local function isSameCrew(player)
-    if not player then return false end
-    local client = LocalPlayer
-    local clientCrew = client:FindFirstChild("DataFolder")
-        and client.DataFolder:FindFirstChild("Information")
-        and client.DataFolder.Information:FindFirstChild("Crew")
-        and tonumber(client.DataFolder.Information.Crew.Value)
-    local playerCrew = player:FindFirstChild("DataFolder")
-        and player.DataFolder:FindFirstChild("Information")
-        and player.DataFolder.Information:FindFirstChild("Crew")
-        and tonumber(player.DataFolder.Information.Crew.Value)
-    if clientCrew and playerCrew and clientCrew > 0 and playerCrew > 0 then
-        return clientCrew == playerCrew
+-- Affinity Check
+local function ValidateAffinity(entity)
+    if not entity then return false end
+    local localFolder = LocalClient:FindFirstChild("DataFolder")
+    local remoteFolder = entity:FindFirstChild("DataFolder")
+    
+    if localFolder and remoteFolder then
+        local localData = localFolder:FindFirstChild("Information")
+        local remoteData = remoteFolder:FindFirstChild("Information")
+        if localData and remoteData then
+            local localVal = localData:FindFirstChild("Crew") and tonumber(localData.Crew.Value)
+            local remoteVal = remoteData:FindFirstChild("Crew") and tonumber(remoteData.Crew.Value)
+            if localVal and remoteVal and localVal > 0 and remoteVal > 0 then
+                return localVal == remoteVal
+            end
+        end
     end
     return false
 end
 
--- fov getters
-local function getCurrentWeaponFOV()
-    local silent = silentCfg
-    local fovMain = silent.FOV
-    if not fovMain.Enabled then
-        return Vector3.new(9999,9999,9999)
+-- Efficient Tool Parsing
+local cachedToolName = nil
+local cachedToolClass = 0 -- 0: Other, 1: SG, 2: Pistol
+local function updateCachedTool()
+    local cModel = LocalClient.Character
+    if cModel then
+        local toolItem = cModel:FindFirstChildOfClass("Tool")
+        if toolItem then
+            cachedToolName = toolItem.Name:gsub("[%[%]]", "")
+            if TypeClassA[cachedToolName] then
+                cachedToolClass = 1
+            elseif TypeClassB[cachedToolName] then
+                cachedToolClass = 2
+            else
+                cachedToolClass = 0
+            end
+        else
+            cachedToolName = nil
+            cachedToolClass = 0
+        end
     end
-    local wc = fovMain['Weapon Configuration']
-    local useWeaponConfig = wc and wc.Enabled
-    if not useWeaponConfig then
-        local base = fovMain.Size
-        return Vector3.new(base.X or 0, base.Y or 0, base.Z or 0)
-    end
-    local character = LocalPlayer.Character
-    if not character then
-        local others = wc.Others
-        return Vector3.new(others.X or 4, others.Y or 6, others.Z or 2)
-    end
-    local tool = character:FindFirstChildOfClass("Tool")
-    if not tool then
-        local others = wc.Others
-        return Vector3.new(others.X or 4, others.Y or 6, others.Z or 2)
-    end
-    local weaponName = tool.Name:gsub("[%[%]]", "")
-    local config
-    if ShotgunNames[weaponName] then
-        config = wc.Shotguns
-    elseif PistolNames[weaponName] then
-        config = wc.Pistols
-    else
-        config = wc.Others
-    end
-    return Vector3.new(config.X or 4, config.Y or 6, config.Z or 2)
 end
 
-local function isVisible(rootPart)
-    local direction = rootPart.Position - Camera.CFrame.Position
-    raycastParams.FilterDescendantsInstances = {LocalPlayer.Character}
-    local result = workspace:Raycast(Camera.CFrame.Position, direction, raycastParams)
-    return result == nil or result.Instance:IsDescendantOf(rootPart.Parent)
-end
-
-local function isTargetVisible(targetCharacter)
-    if not targetCharacter or not targetCharacter:FindFirstChild("Head") then
-        return false
+local function GetConfiguredDimensionA()
+    if not ModuleB.FOV.Enabled then return Vector3.new(9999, 9999, 9999) end
+    local params = ModuleB.FOV['Weapon Configuration']
+    if not params or not params.Enabled then
+        local bBox = ModuleB.FOV.Size
+        return Vector3.new(bBox.X or 0, bBox.Y or 0, bBox.Z or 0)
     end
-    local head = targetCharacter.Head
-    local origin = Camera.CFrame.Position
-    local direction = head.Position - origin
-    raycastParams.FilterDescendantsInstances = {LocalPlayer.Character}
-    local result = workspace:Raycast(origin, direction, raycastParams)
-    return result == nil or result.Instance:IsDescendantOf(targetCharacter)
+    
+    updateCachedTool()
+    local configSet = params.Others
+    if cachedToolClass == 1 then configSet = params.Shotguns
+    elseif cachedToolClass == 2 then configSet = params.Pistols end
+    
+    return Vector3.new(configSet.X or 4, configSet.Y or 6, configSet.Z or 2)
 end
 
-local function getCamlockFOV()
-    local cam = camCfg
-    local fovMain = cam.FOV
-    if not fovMain.Enabled then
-        return Vector3.new(9999,9999,9999)
+local function GetConfiguredDimensionB()
+    if not ModuleC.FOV.Enabled then return Vector3.new(9999, 9999, 9999) end
+    local params = ModuleC.FOV['Weapon Configuration']
+    if not params.Enabled then
+        local bBox = ModuleC.FOV.Size
+        return Vector3.new(bBox.X or 0, bBox.Y or 0, bBox.Z or 0)
     end
-    local wc = fovMain['Weapon Configuration']
-    if not wc.Enabled then
-        local base = fovMain.Size
-        return Vector3.new(base.X or 0, base.Y or 0, base.Z or 0)
-    end
-    local character = LocalPlayer.Character
-    if not character then return Vector3.new(4,6,2) end
-    local tool = character:FindFirstChildOfClass("Tool")
-    if not tool then return Vector3.new(wc.Others.X or 4, wc.Others.Y or 6, wc.Others.Z or 2) end
-    local weaponName = tool.Name:gsub("[%[%]]", "")
-    local config = wc.Others
-    if ShotgunNames[weaponName] then
-        config = wc.Shotguns
-    elseif PistolNames[weaponName] then
-        config = wc.Pistols
-    end
-    return Vector3.new(config.X or 4, config.Y or 6, config.Z or 2)
+    
+    updateCachedTool()
+    local configSet = params.Others
+    if cachedToolClass == 1 then configSet = params.Shotguns
+    elseif cachedToolClass == 2 then configSet = params.Pistols end
+    
+    return Vector3.new(configSet.X or 4, configSet.Y or 6, configSet.Z or 2)
 end
 
-local function getTriggerbotFOV()
-    local tb = triggerCfg
-    local fov = tb.FOV
-    return Vector3.new(fov.X or 0, fov.Y or 0, fov.Z or 0)
+local function CheckOcclusion(bNode)
+    if not bNode then return false end
+    local targetVec = bNode.Position - ActiveCamera.CFrame.Position
+    GlobalRayParams.FilterDescendantsInstances = {LocalClient.Character}
+    local castResult = WorldSpace:Raycast(ActiveCamera.CFrame.Position, targetVec, GlobalRayParams)
+    return castResult == nil or castResult.Instance:IsDescendantOf(bNode.Parent)
 end
 
--- mouse in box checks
-local function isMouseInCamBox()
-    if not (cameraTarget and cameraTarget.Character) then return false end
-    local root = cameraTarget.Character:FindFirstChild("HumanoidRootPart")
-    if not root then return false end
-    local boxSize = getCamlockFOV()
-    local half = Vector3.new(boxSize.X/2, boxSize.Y/2, boxSize.Z/2)
-    local bMin = root.Position - half
-    local bMax = root.Position + half
-    local ray = Camera:ScreenPointToRay(Mouse.X, Mouse.Y)
-    local o, d = ray.Origin, ray.Direction
-    local tMin = (bMin - o) / d
-    local tMax = (bMax - o) / d
-    local t1 = Vector3.new(math.min(tMin.X,tMax.X), math.min(tMin.Y,tMax.Y), math.min(tMin.Z,tMax.Z))
-    local t2 = Vector3.new(math.max(tMin.X,tMax.X), math.max(tMin.Y,tMax.Y), math.max(tMin.Z,tMax.Z))
-    local tNear = math.max(t1.X, t1.Y, t1.Z)
-    local tFar  = math.min(t2.X, t2.Y, t2.Z)
-    return tNear <= tFar and tFar >= 0
+local function CheckIntersection(dimensionFunc, targetEntity)
+    if not targetEntity or not targetEntity.Character then return false end
+    local bNode = targetEntity.Character:FindFirstChild("HumanoidRootPart")
+    if not bNode then return false end
+    
+    local dSize = dimensionFunc()
+    local dHalf = dSize * 0.5
+    local boundsMin = bNode.Position - dHalf
+    local boundsMax = bNode.Position + dHalf
+    
+    local pointerRay = ActiveCamera:ScreenPointToRay(PrimaryController.X, PrimaryController.Y)
+    local pOri, pDir = pointerRay.Origin, pointerRay.Direction
+    
+    local tMin = (boundsMin - pOri) / pDir
+    local tMax = (boundsMax - pOri) / pDir
+    
+    local t1X = math.min(tMin.X, tMax.X); local t1Y = math.min(tMin.Y, tMax.Y); local t1Z = math.min(tMin.Z, tMax.Z)
+    local t2X = math.max(tMin.X, tMax.X); local t2Y = math.max(tMin.Y, tMax.Y); local t2Z = math.max(tMin.Z, tMax.Z)
+    
+    local nVal = math.max(t1X, t1Y, t1Z)
+    local fVal = math.min(t2X, t2Y, t2Z)
+    
+    return nVal <= fVal and fVal >= 0
 end
 
-local function isMouseInTriggerBox()
-    if not lockedPlayer or not lockedPlayer.Character then return false end
-    local root = lockedPlayer.Character:FindFirstChild("HumanoidRootPart")
-    if not root then return false end
-    local fov = triggerCfg.FOV
-    local half = Vector3.new(fov.X or 0, fov.Y or 0, fov.Z or 0) / 2
-    local min = root.Position - half
-    local max = root.Position + half
-    local ray = Camera:ScreenPointToRay(Mouse.X, Mouse.Y)
-    local tMin = (min - ray.Origin) / ray.Direction
-    local tMax = (max - ray.Origin) / ray.Direction
-    local t1 = Vector3.new(math.min(tMin.X,tMax.X), math.min(tMin.Y,tMax.Y), math.min(tMin.Z,tMax.Z))
-    local t2 = Vector3.new(math.max(tMin.X,tMax.X), math.max(tMin.Y,tMax.Y), math.max(tMin.Z,tMax.Z))
-    local tNear = math.max(t1.X, t1.Y, t1.Z)
-    local tFar  = math.min(t2.X, t2.Y, t2.Z)
-    return tNear <= tFar and tFar >= 0
-end
-
-local function getClosestPlayerToMouse()
-    local renderDist = silentCfg.Distance
-    local closest = nil
-    local bestDist = math.huge
-    local mx, my = Mouse.X, Mouse.Y
-    local mousePos = Vector2.new(mx, my)
-    local myChar = LocalPlayer.Character
-    local myRoot = myChar and myChar:FindFirstChild("HumanoidRootPart")
-    if not myRoot then return nil end
-    for _, player in pairs(Players:GetPlayers()) do
-        if player ~= LocalPlayer and player.Character then
-            local root = player.Character:FindFirstChild("HumanoidRootPart")
-            if root then
-                if (root.Position - myRoot.Position).Magnitude <= renderDist then
-                    local screenPos = Camera:WorldToViewportPoint(root.Position)
-                    if screenPos.Z > 0 and isVisible(root) then
-                        local dist = (Vector2.new(screenPos.X, screenPos.Y) - mousePos).Magnitude
-                        if dist < bestDist then
-                            bestDist = dist
-                            closest = player
+local function GetOptimalCandidate()
+    local optimalBound = ModuleB.Distance
+    local candidateNode = nil
+    local pX, pY = PrimaryController.X, PrimaryController.Y
+    local referenceModel = LocalClient.Character and LocalClient.Character:FindFirstChild("HumanoidRootPart")
+    
+    if not referenceModel then return nil end
+    
+    local activeElements = PlayerService:GetPlayers()
+    for i = 1, #activeElements do
+        local elem = activeElements[i]
+        if elem ~= LocalClient and elem.Character then
+            local proxyNode = elem.Character:FindFirstChild("HumanoidRootPart")
+            if proxyNode then
+                local displacement = (proxyNode.Position - referenceModel.Position).Magnitude
+                if displacement <= optimalBound then
+                    local sCoords = ActiveCamera:WorldToViewportPoint(proxyNode.Position)
+                    if sCoords.Z > 0 and CheckOcclusion(proxyNode) then
+                        local scalarDist = math.sqrt((sCoords.X - pX)^2 + (sCoords.Y - pY)^2)
+                        if scalarDist < optimalBound then
+                            optimalBound = scalarDist
+                            candidateNode = elem
                         end
                     end
                 end
             end
         end
     end
-    return closest
+    return candidateNode
 end
 
-local function GetClosestPointAdvanced(Part, Scale)
-    local cf = Part.CFrame
-    local size = Part.Size * (Scale / 2)
-    local ray = Mouse.UnitRay
-    local rel = cf:PointToObjectSpace(ray.Origin + ray.Direction * ray.Direction:Dot(cf.Position - ray.Origin))
-    return cf * Vector3.new(
-        math.clamp(rel.X, -size.X, size.X),
-        math.clamp(rel.Y, -size.Y, size.Y),
-        math.clamp(rel.Z, -size.Z, size.Z)
-    )
-end
-
-local function GetClosestPointBasic(Part)
-    if not Part then return Part.Position end
-    local ray = Mouse.UnitRay
-    raycastParams.FilterDescendantsInstances = {Part}
-    raycastParams.FilterType = Enum.RaycastFilterType.Whitelist
-    local result = Workspace:Raycast(ray.Origin, ray.Direction * 1000, raycastParams)
-    return result and result.Position or Part.Position
-end
-
-local function GetClosestPartToCursor(Character)
-    local bestPart = nil
-    local bestDist = math.huge
-    local mousePos = UserInput:GetMouseLocation()
-    for _, part in ipairs(Character:GetChildren()) do
-        if part:IsA("BasePart") then
-            local screenPos, onScreen = Camera:WorldToViewportPoint(part.Position)
-            if onScreen then
-                local dist = (Vector2.new(screenPos.X, screenPos.Y) - mousePos).Magnitude
-                if dist < bestDist then
-                    bestDist = dist
-                    bestPart = part
-                end
-            end
-        end
+local function ValidateEntity(entity)
+    if not entity or not entity.Character then return false end
+    local conditions = FilterB
+    
+    if conditions["Self Knocked"] then
+        local stEffects = LocalClient.Character and LocalClient.Character:FindFirstChild("BodyEffects")
+        if stEffects and stEffects:FindFirstChild("K.O") and stEffects["K.O"].Value then return false end
     end
-    return bestPart or Character:FindFirstChild("HumanoidRootPart") or Character:FindFirstChild("Head")
-end
-
-local getClosestPart = function(char)
-    return GetClosestPartToCursor(char)
-end
-
-local function applyPrediction(partOrNil, basePos)
-    if not partOrNil then return basePos end
-    local pred = silentCfg.Prediction
-    local vel = partOrNil.Velocity or Vector3.new(0,0,0)
-    local offset = Vector3.new(
-        vel.X * (pred.X or 0),
-        vel.Y * (pred.Y or 0),
-        vel.Z * (pred.Z or 0)
-    )
-    return basePos + offset
-end
-
-local function resolveHit(targetChar)
-    local silent = silentCfg
-    local mode = silent['Hit Part']
-    local result = nil
-    local sourcePart = nil
-    if mode == "Closest Point" then
-        sourcePart = getClosestPart(targetChar)
-        if sourcePart then
-            local cp = silent['Closest Point']
-            local point = (cp.Type == "Advanced") and
-                GetClosestPointAdvanced(sourcePart, cp.Scale or 0.6) or
-                GetClosestPointBasic(sourcePart)
-            result = point
-        end
-    elseif mode == "Closest Part" then
-        sourcePart = getClosestPart(targetChar)
-        if sourcePart then
-            result = sourcePart.Position
-        end
-    elseif mode == "Head" then
-        local head = targetChar:FindFirstChild("Head")
-        if head then
-            sourcePart = head
-            result = head.Position
-        end
-    else
-        local specific = targetChar:FindFirstChild(mode)
-        if specific and specific:IsA("BasePart") then
-            sourcePart = specific
-            result = specific.Position
-        end
+    
+    if conditions["Crew Check"] and ValidateAffinity(entity) then return false end
+    
+    if conditions["Knock Check"] then
+        local tEffects = entity.Character:FindFirstChild("BodyEffects")
+        if tEffects and tEffects:FindFirstChild("K.O") and tEffects["K.O"].Value then return false end
     end
-    if result and sourcePart then
-        result = applyPrediction(sourcePart, result)
+    
+    if conditions["Visible"] then
+        local vNode = entity.Character:FindFirstChild("Head")
+        if not vNode or not CheckOcclusion(vNode) then return false end
     end
-    return result, sourcePart
-end
-
-local function canTargetPlayer(player)
-    if not player or not player.Character then return false end
-    local selectCond = condSelecting
-    if selectCond["Self Knocked"] then
-        local be = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("BodyEffects")
-        if be and be:FindFirstChild("K.O") and be["K.O"].Value then
-            return false
-        end
-    end
-    if selectCond["Crew Check"] then
-        if isSameCrew(player) then
-            return false
-        end
-    end
-    if selectCond["Knock Check"] then
-        local be = player.Character:FindFirstChild("BodyEffects")
-        if be and be:FindFirstChild("K.O") and be["K.O"].Value then
-            return false
-        end
-    end
-    if selectCond["Visible"] and not isTargetVisible(player.Character) then
-        return false
-    end
+    
     return true
 end
 
-local function createSilentBox(targetPlayer)
-    if box then box:Destroy() end
-    local boxSize = getCurrentWeaponFOV()
-    box = Instance.new("BoxHandleAdornment")
-    box.Size = boxSize
-    box.Color3 = Color3.fromRGB(255,0,0)
-    box.Transparency = 1
-    box.AlwaysOnTop = true
-    box.ZIndex = 10
-    box.Adornee = targetPlayer.Character
-    box.Parent = targetPlayer.Character
-    if not BOX_VISIBLE then box.Transparency = 1 end
+local function BindZones(targetEntity)
+    ResetVisualNodes()
+    local fovC = GetConfiguredDimensionA()
+    ZoneA = Instance.new("BoxHandleAdornment")
+    ZoneA.Size = fovC
+    ZoneA.Color3 = Color3.fromRGB(255, 0, 0)
+    ZoneA.Transparency = ZoneA_Visible and 1 or 1
+    ZoneA.AlwaysOnTop = true
+    ZoneA.ZIndex = 10
+    ZoneA.Adornee = targetEntity.Character
+    ZoneA.Parent = targetEntity.Character
+
+    local fovT = ModuleD.FOV
+    ZoneTrigger = Instance.new("BoxHandleAdornment")
+    ZoneTrigger.Size = Vector3.new(fovT.X or 0, fovT.Y or 0, fovT.Z or 0)
+    ZoneTrigger.Color3 = Color3.fromRGB(0, 150, 255)
+    ZoneTrigger.Transparency = 1
+    ZoneTrigger.AlwaysOnTop = true
+    ZoneTrigger.ZIndex = 12
+    ZoneTrigger.Adornee = targetEntity.Character
+    ZoneTrigger.Parent = targetEntity.Character
+
+    local fovCam = GetConfiguredDimensionB()
+    ZoneCamera = Instance.new("BoxHandleAdornment")
+    ZoneCamera.Size = fovCam
+    ZoneCamera.Color3 = Color3.fromRGB(0, 255, 0)
+    ZoneCamera.Transparency = 1
+    ZoneCamera.AlwaysOnTop = true
+    ZoneCamera.ZIndex = 11
+    ZoneCamera.Adornee = targetEntity.Character
+    ZoneCamera.Parent = targetEntity.Character
 end
 
-local function createTriggerBox(targetPlayer)
-    if triggerBox then triggerBox:Destroy() end
-    local fov = triggerCfg.FOV
-    local boxSize = Vector3.new(fov.X or 0, fov.Y or 0, fov.Z or 0)
-    triggerBox = Instance.new("BoxHandleAdornment")
-    triggerBox.Size = boxSize
-    triggerBox.Color3 = Color3.fromRGB(0,150,255)
-    triggerBox.Transparency = 1
-    triggerBox.AlwaysOnTop = true
-    triggerBox.ZIndex = 12
-    triggerBox.Adornee = targetPlayer.Character
-    triggerBox.Parent = targetPlayer.Character
+local function InterpretCoordinates(partNode, baseVal)
+    if not partNode then return baseVal end
+    local velocityDelta = partNode.Velocity or Vector3.new(0, 0, 0)
+    local predictionScalars = ModuleB.Prediction
+    return baseVal + Vector3.new(velocityDelta.X * (predictionScalars.X or 0), velocityDelta.Y * (predictionScalars.Y or 0), velocityDelta.Z * (predictionScalars.Z or 0))
 end
 
-local function createCamBox(targetPlayer)
-    if camBox then camBox:Destroy() end
-    local boxSize = getCamlockFOV()
-    camBox = Instance.new("BoxHandleAdornment")
-    camBox.Size = boxSize
-    camBox.Color3 = Color3.fromRGB(0,255,0)
-    camBox.Transparency = 1
-    camBox.AlwaysOnTop = true
-    camBox.ZIndex = 11
-    camBox.Adornee = targetPlayer.Character
-    camBox.Parent = targetPlayer.Character
-end
-
-local function isMouseInBox()
-    if not (lockedPlayer and lockedPlayer.Character) then return false end
-    local root = lockedPlayer.Character:FindFirstChild("HumanoidRootPart")
-    if not root then return false end
-    local boxSize = getCurrentWeaponFOV()
-    local half = Vector3.new(boxSize.X/2, boxSize.Y/2, boxSize.Z/2)
-    local bMin = root.Position - half
-    local bMax = root.Position + half
-    local ray = Camera:ScreenPointToRay(Mouse.X, Mouse.Y)
-    local o, d = ray.Origin, ray.Direction
-    local tMin = (bMin - o) / d
-    local tMax = (bMax - o) / d
-    local t1 = Vector3.new(math.min(tMin.X,tMax.X), math.min(tMin.Y,tMax.Y), math.min(tMin.Z,tMax.Z))
-    local t2 = Vector3.new(math.max(tMin.X,tMax.X), math.max(tMin.Y,tMax.Y), math.max(tMin.Z,tMax.Z))
-    local tNear = math.max(t1.X, t1.Y, t1.Z)
-    local tFar  = math.min(t2.X, t2.Y, t2.Z)
-    return tNear <= tFar and tFar >= 0
-end
-
-local function getToggleKey()
-    return Enum.KeyCode[general.Toggle]
-end
-
--- input
-UserInput.InputBegan:Connect(LPH_NO_VIRTUALIZE(function(inp, gp)
-    if gp then return end
-    if inp.KeyCode == getToggleKey() then
-        if lockedPlayer then
-            lockedPlayer = nil
-            cameraTarget = nil
-            clearBoxes()
-        else
-            local closest = getClosestPlayerToMouse()
-            if closest and canTargetPlayer(closest) then
-                lockedPlayer = closest
-                cameraTarget = closest
-                createSilentBox(closest)
-                createCamBox(closest)
-                createTriggerBox(closest)
-            end
-        end
-    end
-    if inp.KeyCode == Enum.KeyCode[espCfg.Activation['Activation Bind']] then
-        local mode = espCfg.Activation['Activation Mode']
-        if mode == "Toggle" then
-            espCfg.Enabled = not espCfg.Enabled
-        elseif mode == "Hold" then
-            espCfg.Enabled = true
-        end
-    end
-    local bind = Enum.KeyCode[triggerCfg.Activation['Activation Bind']]
-    if inp.KeyCode == bind then
-        local mode = triggerCfg.Activation['Activation Mode']
-        if mode == "Toggle" then
-            triggerToggled = not triggerToggled
-        elseif mode == "Hold" then
-            triggerKeyDown = true
-        end
-    end
-end))
-
-UserInput.InputEnded:Connect(LPH_NO_VIRTUALIZE(function(inp, gp)
-    if gp then return end
-    if inp.KeyCode == Enum.KeyCode[espCfg.Activation['Activation Bind']] then
-        local mode = espCfg.Activation['Activation Mode']
-        if mode == "Hold" then
-            espCfg.Enabled = false
-        end
-    end
-    local bind = Enum.KeyCode[triggerCfg.Activation['Activation Bind']]
-    if inp.KeyCode == bind then
-        triggerKeyDown = false
-    end
-end))
-
--- mouse index hook
-originalIndex = hookmetamethod(game, "__index", LPH_NO_VIRTUALIZE(function(self, key)
-    if self == Mouse and (key == "Hit" or key == "Target") and lockedPlayer then
-        if (not condSelected.Visible or isTargetVisible(lockedPlayer.Character)) and isMouseInBox() then
-            local pos, part = resolveHit(lockedPlayer.Character)
-            if pos and part then
-                if key == "Hit" then
-                    return CFrame.new(pos)
-                else
-                    return part
+local function CalculateProxyIntersection(entityChar)
+    local method = ModuleB['Hit Part']
+    local cPart = nil
+    local pVal = nil
+    
+    if method == "Closest Point" or method == "Closest Part" then
+        local mPos = InputProvider:GetMouseLocation()
+        local minD = math.huge
+        local parts = entityChar:GetChildren()
+        
+        for i = 1, #parts do
+            local p = parts[i]
+            if p:IsA("BasePart") then
+                local sP, vP = ActiveCamera:WorldToViewportPoint(p.Position)
+                if vP then
+                    local d = math.sqrt((sP.X - mPos.X)^2 + (sP.Y - mPos.Y)^2)
+                    if d < minD then
+                        minD = d
+                        cPart = p
+                    end
                 end
             end
         end
+        cPart = cPart or entityChar:FindFirstChild("HumanoidRootPart") or entityChar:FindFirstChild("Head")
+        
+        if cPart and method == "Closest Point" then
+            local pType = ModuleB['Closest Point']
+            if pType.Type == "Advanced" then
+                local scale = pType.Scale or 0.6
+                local cf = cPart.CFrame
+                local sX, sY, sZ = (cPart.Size.X * scale * 0.5), (cPart.Size.Y * scale * 0.5), (cPart.Size.Z * scale * 0.5)
+                local mRay = PrimaryController.UnitRay
+                local rel = cf:PointToObjectSpace(mRay.Origin + mRay.Direction * mRay.Direction:Dot(cf.Position - mRay.Origin))
+                pVal = cf * Vector3.new(math.clamp(rel.X, -sX, sX), math.clamp(rel.Y, -sY, sY), math.clamp(rel.Z, -sZ, sZ))
+            else
+                local mRay = PrimaryController.UnitRay
+                local params = RaycastParams.new()
+                params.FilterDescendantsInstances = {cPart}
+                params.FilterType = Enum.RaycastFilterType.Whitelist
+                local rData = WorldSpace:Raycast(mRay.Origin, mRay.Direction * 1000, params)
+                pVal = rData and rData.Position or cPart.Position
+            end
+        elseif cPart then
+            pVal = cPart.Position
+        end
+    else
+        cPart = entityChar:FindFirstChild(method) or entityChar:FindFirstChild("Head")
+        if cPart then pVal = cPart.Position end
     end
-    return originalIndex(self, key)
+    
+    if pVal and cPart then
+        pVal = InterpretCoordinates(cPart, pVal)
+    end
+    return pVal, cPart
+end
+
+InputProvider.InputBegan:Connect(executeSafely(function(evt, flag)
+    if flag then return end
+    if evt.KeyCode == Enum.KeyCode[MainConfig.Toggle] then
+        if GlobalInterface then
+            GlobalInterface = nil
+            TrackingInterface = nil
+            ResetVisualNodes()
+        else
+            local targetEntity = GetOptimalCandidate()
+            if targetEntity and ValidateEntity(targetEntity) then
+                GlobalInterface = targetEntity
+                TrackingInterface = targetEntity
+                BindZones(targetEntity)
+            end
+        end
+    end
+    
+    if evt.KeyCode == Enum.KeyCode[ModuleE.Activation['Activation Bind']] then
+        local modeSelect = ModuleE.Activation['Activation Mode']
+        if modeSelect == "Toggle" then ModuleE.Enabled = not ModuleE.Enabled
+        elseif modeSelect == "Hold" then ModuleE.Enabled = true end
+    end
+    
+    if evt.KeyCode == Enum.KeyCode[ModuleD.Activation['Activation Bind']] then
+        local modeSelect = ModuleD.Activation['Activation Mode']
+        if modeSelect == "Toggle" then SignalToggled = not SignalToggled
+        elseif modeSelect == "Hold" then SignalActive = true end
+    end
 end))
 
--- China stuff (untouched)
-local DeepFakePosition = loadstring(game:HttpGet("https://raw.githubusercontent.com/Nosssa/NossLock/main/GetRealMousePosition"))() 
+InputProvider.InputEnded:Connect(executeSafely(function(evt, flag)
+    if flag then return end
+    if evt.KeyCode == Enum.KeyCode[ModuleE.Activation['Activation Bind']] and ModuleE.Activation['Activation Mode'] == "Hold" then
+        ModuleE.Enabled = false
+    end
+    if evt.KeyCode == Enum.KeyCode[ModuleD.Activation['Activation Bind']] then
+        SignalActive = false
+    end
+end))
+
+OriginalIndexHandler = hookmetamethod(game, "__index", executeSafely(function(self, requestKey)
+    if self == PrimaryController and (requestKey == "Hit" or requestKey == "Target") and GlobalInterface then
+        local vNode = GlobalInterface.Character and GlobalInterface.Character:FindFirstChild("Head")
+        local isVis = FilterA.Visible and CheckOcclusion(vNode) or not FilterA.Visible
+        
+        if isVis and CheckIntersection(GetConfiguredDimensionA, GlobalInterface) then
+            local rCoords, rPart = CalculateProxyIntersection(GlobalInterface.Character)
+            if rCoords and rPart then
+                if requestKey == "Hit" then return CFrame.new(rCoords)
+                else return rPart end
+            end
+        end
+    end
+    return OriginalIndexHandler(self, requestKey)
+end))
+
+-- Engine Overrides
+local TargetDataStructure = game:HttpGet("https://raw.githubusercontent.com/Nosssa/NossLock/main/GetRealMousePosition")
+if TargetDataStructure then loadstring(TargetDataStructure)() end
 task.wait()
 
-local China = setmetatable({}, {
-    __index = LPH_NO_VIRTUALIZE(function(Company, Price)
-        return game:GetService(Price)
-    end)
-})
-   
-local ChinaWorld = China.Workspace
-local Society = China.Players
-local ChineseDeporation = China.ReplicatedStorage
-local ChinaInputService = China.UserInputService
-
-local ChingChong = Society.LocalPlayer
-local Cat =  "meow!!" and ChingChong:GetMouse()
-
-local ChineseEvent = ChineseDeporation:FindFirstChild("MainEvent") or nil
-local Payment = "Hello Da Hoodian!" and nil
-
-local RandomChinese = function(RandomCredit)
-   return type(RandomCredit) == "number" and math.random(-RandomCredit, RandomCredit) or 0
-end
-
-local ChinaAlive = function(ChinesePlayer)
-   return ChinesePlayer and ChinesePlayer.Character and ChinesePlayer.Character:FindFirstChild("Humanoid") and ChinesePlayer.Character:FindFirstChild("Head") or false
-end
-
-local GameArgs = {
-    [9196894486] = "UpdateMousePos",
-}
-
-local DEFAULT_ARG = "UpdateMousePos"
-local ChinaHook
-ChinaHook = hookmetamethod(game, "__namecall", LPH_NO_VIRTUALIZE(function(self, ...)
-    local ChinaArgs       = {...}
-    local DeportationMethod = getnamecallmethod()
-    local targetArg = GameArgs[game.PlaceId] or DEFAULT_ARG
-    if not checkcaller()
-    and DeportationMethod == "FireServer"
-    and self.Name == "MainEvent"
-    and ChinaArgs[1] == targetArg then
-        return self.FireServer(self, unpack(ChinaArgs))
+local NetworkInterceptor
+NetworkInterceptor = hookmetamethod(game, "__namecall", executeSafely(function(self, ...)
+    local payload = {...}
+    local methodType = getnamecallmethod()
+    local acceptedPayloads = {[9196894486] = "UpdateMousePos"}
+    local rType = acceptedPayloads[game.PlaceId] or "UpdateMousePos"
+    
+    if not checkcaller() and methodType == "FireServer" and self.Name == "MainEvent" and payload[1] == rType then
+        return self.FireServer(self, unpack(payload))
     end
-    return ChinaHook(self, ...)
+    return NetworkInterceptor(self, ...)
 end))
 
--- math.random hook (unchanged)
-local oldRandom
-oldRandom = hookfunction(math.random, LPH_NO_VIRTUALIZE(function(...)
-    local args = { ... }
-    if checkcaller() then
-        return oldRandom(...)
-    end
-    local multiplier = 1
-    if cfg['Weapon Modifications'] and cfg['Weapon Modifications'].Enabled then
-        local character = LocalPlayer.Character
-        if character then
-            local tool = character:FindFirstChildOfClass("Tool")
-            if tool then
-                local weaponName = tool.Name:gsub("[%[%]]", "")
-                local weaponMods = cfg['Weapon Modifications']
-                if weaponMods['[Double-Barrel SG]'] and weaponName == "Double-Barrel SG" then
-                    multiplier = weaponMods['[Double-Barrel SG]'].Multiplier or 1
-                elseif weaponMods['[TacticalShotgun]'] and weaponName == "TacticalShotgun" then
-                    multiplier = weaponMods['[TacticalShotgun]'].Multiplier or 1
-                elseif weaponMods['[Shotgun]'] and weaponName == "Shotgun" then
-                    multiplier = weaponMods['[Shotgun]'].Multiplier or 1
-                elseif weaponMods['[DrumShotgun]'] and weaponName == "DrumShotgun" then
-                    multiplier = weaponMods['[DrumShotgun]'].Multiplier or 1
-                end
-            end
+local MathEngineGenerator
+MathEngineGenerator = hookfunction(math.random, executeSafely(function(...)
+    local argData = {...}
+    if checkcaller() then return MathEngineGenerator(...) end
+    
+    local mult = 1
+    if MainConfig['Weapon Modifications'] and MainConfig['Weapon Modifications'].Enabled then
+        updateCachedTool()
+        if cachedToolName then
+            local modData = MainConfig['Weapon Modifications']["["..cachedToolName.."]"]
+            if modData then mult = modData.Multiplier or 1 end
         end
     end
-    if
-        (#args == 0)
-        or (args[1] == -0.05 and args[2] == 0.05)
-        or (args[1] == -0.1)
-        or (args[1] == -0.05)
-    then
-        if multiplier ~= 1 then
-            return oldRandom(...) * multiplier
-        end
+    
+    local aCount = #argData
+    if aCount == 0 or (aCount == 2 and argData[1] == -0.05 and argData[2] == 0.05) or (argData[1] == -0.1) or (argData[1] == -0.05) then
+        if mult ~= 1 then return MathEngineGenerator(...) * mult end
     end
-    return oldRandom(...)
+    return MathEngineGenerator(...)
 end))
 
--- render loop
-RunService.RenderStepped:Connect(LPH_NO_VIRTUALIZE(function()
-    local selectedCond = condSelected
-
-    if general.Mode == 'Target' and lockedPlayer then
-        local selfChar = LocalPlayer.Character
-        local targetChar = lockedPlayer.Character
-        local shouldUnlock = false
-        if selectedCond["Self Knocked"] then
-            local be = selfChar and selfChar:FindFirstChild("BodyEffects")
-            if be and be:FindFirstChild("K.O") and be["K.O"].Value then
-                shouldUnlock = true
-            end
+-- Core Runtime Thread
+ExecutionLoop.RenderStepped:Connect(executeSafely(function()
+    ActiveCamera = WorldSpace.CurrentCamera -- Cache refresh
+    
+    if MainConfig.Mode == 'Target' and GlobalInterface then
+        local sObj = LocalClient.Character
+        local tObj = GlobalInterface.Character
+        local purgeState = false
+        
+        if FilterA["Self Knocked"] then
+            local st = sObj and sObj:FindFirstChild("BodyEffects")
+            if st and st:FindFirstChild("K.O") and st["K.O"].Value then purgeState = true end
         end
-        if selectedCond["Knock Check"] then
-            local be = targetChar and targetChar:FindFirstChild("BodyEffects")
-            if be and be:FindFirstChild("K.O") and be["K.O"].Value then
-                shouldUnlock = true
-            end
+        if FilterA["Knock Check"] then
+            local tc = tObj and tObj:FindFirstChild("BodyEffects")
+            if tc and tc:FindFirstChild("K.O") and tc["K.O"].Value then purgeState = true end
         end
-        if shouldUnlock then
-            lockedPlayer = nil
-            cameraTarget = nil
-            clearBoxes()
+        
+        if purgeState then
+            GlobalInterface = nil
+            TrackingInterface = nil
+            ResetVisualNodes()
             return
         end
-    end
-
-    if general.Mode == 'Auto' then
-        local closestToMouse = getClosestPlayerToMouse()
-        if closestToMouse and closestToMouse.Character and canTargetPlayer(closestToMouse) then
-            if lockedPlayer ~= closestToMouse then
-                lockedPlayer = closestToMouse
-                cameraTarget = closestToMouse
-                clearBoxes()
-                createSilentBox(closestToMouse)
-                createCamBox(closestToMouse)
-                createTriggerBox(closestToMouse)
+    elseif MainConfig.Mode == 'Auto' then
+        local cEntity = GetOptimalCandidate()
+        if cEntity and ValidateEntity(cEntity) then
+            if GlobalInterface ~= cEntity then
+                GlobalInterface = cEntity
+                TrackingInterface = cEntity
+                BindZones(cEntity)
             end
         else
-            if lockedPlayer then
-                lockedPlayer = nil
-                cameraTarget = nil
-                clearBoxes()
+            if GlobalInterface then
+                GlobalInterface = nil
+                TrackingInterface = nil
+                ResetVisualNodes()
             end
         end
     end
 
-    if box and lockedPlayer and lockedPlayer.Character then
-        box.Size = getCurrentWeaponFOV()
-        box.Adornee = lockedPlayer.Character
+    if ZoneA and GlobalInterface and GlobalInterface.Character then
+        ZoneA.Size = GetConfiguredDimensionA()
+        ZoneA.Adornee = GlobalInterface.Character
     end
-    if camBox and cameraTarget and cameraTarget.Character then
-        camBox.Size = getCamlockFOV()
-        camBox.Adornee = cameraTarget.Character
+    if ZoneCamera and TrackingInterface and TrackingInterface.Character then
+        ZoneCamera.Size = GetConfiguredDimensionB()
+        ZoneCamera.Adornee = TrackingInterface.Character
     end
-    if triggerBox and lockedPlayer and lockedPlayer.Character then
-        local fov = triggerCfg.FOV
-        triggerBox.Size = Vector3.new(fov.X or 0, fov.Y or 0, fov.Z or 0)
-        triggerBox.Adornee = lockedPlayer.Character
+    if ZoneTrigger and GlobalInterface and GlobalInterface.Character then
+        local vD = ModuleD.FOV
+        ZoneTrigger.Size = Vector3.new(vD.X or 0, vD.Y or 0, vD.Z or 0)
+        ZoneTrigger.Adornee = GlobalInterface.Character
     end
 
-    if lockedPlayer and triggerCfg.Enabled and (not selectedCond.Visible or isTargetVisible(lockedPlayer.Character)) then
-        local tb = triggerCfg
-        local mode = tb.Activation['Activation Mode']
-        local cooldown = tb['Click Cooldown']
-        local char = LocalPlayer.Character
-        local hasKnife = char and (char:FindFirstChild("[Knife]") or char:FindFirstChild("Knife"))
-        if not hasKnife then
-            local inBox = isMouseInTriggerBox()
-            local active = false
-            if mode == "Always" then
-                active = true
-            elseif mode == "Hold" then
-                active = triggerKeyDown
-            elseif mode == "Toggle" then
-                active = triggerToggled
-            end
-            if inBox and active then
-                local now = tick()
-                if now - lastActivationTime >= cooldown then
-                    local tool = char and char:FindFirstChildOfClass("Tool")
-                    if tool then
-                        tool:Activate()
-                        lastActivationTime = now
+    if GlobalInterface and ModuleD.Enabled then
+        local vNode = GlobalInterface.Character and GlobalInterface.Character:FindFirstChild("Head")
+        if not FilterA.Visible or CheckOcclusion(vNode) then
+            local mSelector = ModuleD.Activation['Activation Mode']
+            local rDelay = ModuleD['Click Cooldown']
+            local lChar = LocalClient.Character
+            
+            if lChar and not (lChar:FindFirstChild("[Knife]") or lChar:FindFirstChild("Knife")) then
+                local isInBounds = CheckIntersection(function()
+                    local tF = ModuleD.FOV
+                    return Vector3.new(tF.X or 0, tF.Y or 0, tF.Z or 0)
+                end, GlobalInterface)
+                
+                local isActive = (mSelector == "Always") or (mSelector == "Hold" and SignalActive) or (mSelector == "Toggle" and SignalToggled)
+                
+                if isInBounds and isActive then
+                    local tCurrent = tick()
+                    if tCurrent - ActivationTimestamp >= rDelay then
+                        local lTool = lChar:FindFirstChildOfClass("Tool")
+                        if lTool then
+                            lTool:Activate()
+                            ActivationTimestamp = tCurrent
+                        end
                     end
                 end
             end
         end
     end
 
-    if cameraTarget 
-        and cameraTarget.Character 
-        and camCfg.Enabled 
-        and (not selectedCond.Visible or isTargetVisible(cameraTarget.Character))
-        and (not selectedCond["Crew Check"] or not isSameCrew(cameraTarget))
-        and isMouseInCamBox() 
-    then
-        local camConfig = camCfg
-        local checks = camConfig['Camera Aimbot Checks']
-        local zoomDist = (Camera.CFrame.Position - Camera.Focus.Position).Magnitude
-        local isFirstPerson = zoomDist < 1
-        local isThirdPerson = zoomDist >= 1
-        local rightClickHeld = UserInput:IsMouseButtonPressed(Enum.UserInputType.MouseButton2)
-        local fpAllowed = checks['First Person'] and isFirstPerson
-        local tpAllowed = checks['Third Person'] and isThirdPerson
-        local rcAllowed = not checks['Right Click'] or rightClickHeld
-        local targetVisible = true
-        if selectedCond["Visible"] then
-            local head = cameraTarget.Character:FindFirstChild("Head")
-            if head then
-                raycastParams.FilterDescendantsInstances = {LocalPlayer.Character, cameraTarget.Character}
-                local result = Workspace:Raycast(Camera.CFrame.Position, head.Position - Camera.CFrame.Position, raycastParams)
-                targetVisible = result == nil or result.Instance:IsDescendantOf(cameraTarget.Character)
-            end
-        end
-        if (fpAllowed or tpAllowed) and rcAllowed and targetVisible 
-            and (not selectedCond["Crew Check"] or not isSameCrew(cameraTarget))
-        then
-            local hitPartName = camConfig['Hit Part']
-            local targetPart
-            if hitPartName == "Closest Part" then
-                targetPart = getClosestPart(cameraTarget.Character)
-            else
-                targetPart = cameraTarget.Character:FindFirstChild(hitPartName)
-                if not targetPart then
-                    targetPart = cameraTarget.Character:FindFirstChild("Head")
-                end
-            end
-            if targetPart then
-                local pred = camConfig.Prediction
-                local vel = targetPart.Velocity
-                local predictedPos = targetPart.Position + Vector3.new(
-                    vel.X * pred.X,
-                    vel.Y * pred.Y,
-                    vel.Z * pred.Z
-                )
-                local function cubicInOut(t)
-                    if t < 0.5 then
-                        return 4 * t * t * t
-                    else
-                        return 1 - math.pow(-2 * t + 2, 3) / 2
+    if TrackingInterface and TrackingInterface.Character and ModuleC.Enabled and CheckIntersection(GetConfiguredDimensionB, TrackingInterface) then
+        local cTarget = TrackingInterface
+        local vNode = cTarget.Character:FindFirstChild("Head")
+        local isTargetVisibleLocally = not FilterA.Visible or CheckOcclusion(vNode)
+        
+        if isTargetVisibleLocally and (not FilterA["Crew Check"] or not ValidateAffinity(cTarget)) then
+            local fData = ModuleC['Camera Aimbot Checks']
+            local camMagnitude = (ActiveCamera.CFrame.Position - ActiveCamera.Focus.Position).Magnitude
+            
+            local fCond = fData['First Person'] and (camMagnitude < 1)
+            local tCond = fData['Third Person'] and (camMagnitude >= 1)
+            local rmCond = not fData['Right Click'] or InputProvider:IsMouseButtonPressed(Enum.UserInputType.MouseButton2)
+            
+            if (fCond or tCond) and rmCond then
+                local ptStr = ModuleC['Hit Part']
+                local hPart = ptStr == "Closest Part" and (function()
+                    local mp = InputProvider:GetMouseLocation()
+                    local mD, cP = math.huge, nil
+                    for _, p in ipairs(cTarget.Character:GetChildren()) do
+                        if p:IsA("BasePart") then
+                            local sp, vp = ActiveCamera:WorldToViewportPoint(p.Position)
+                            if vp then
+                                local md = math.sqrt((sp.X - mp.X)^2 + (sp.Y - mp.Y)^2)
+                                if md < mD then mD = md; cP = p end
+                            end
+                        end
                     end
+                    return cP or cTarget.Character:FindFirstChild("HumanoidRootPart")
+                end)() or cTarget.Character:FindFirstChild(ptStr) or vNode
+                
+                if hPart then
+                    local trP = hPart.Position + Vector3.new(
+                        (hPart.Velocity.X * ModuleC.Prediction.X),
+                        (hPart.Velocity.Y * ModuleC.Prediction.Y),
+                        (hPart.Velocity.Z * ModuleC.Prediction.Z)
+                    )
+                    
+                    local pDir = (trP - ActiveCamera.CFrame.Position).Unit
+                    local cv = ActiveCamera.CFrame.LookVector
+                    local interpVal = math.clamp(cv:Dot(pDir), -1, 1)
+                    local prg = (interpVal + 1) * 0.5
+                    local ease = prg < 0.5 and (4 * prg * prg * prg) or (1 - math.pow(-2 * prg + 2, 3) * 0.5)
+                    
+                    local factor = math.clamp((ModuleC.Snappiness or 0.1) * (0.4 + ease * 1.6), 0, 1)
+                    ActiveCamera.CFrame = CFrame.new(ActiveCamera.CFrame.Position, ActiveCamera.CFrame.Position + cv:Lerp(pDir, factor))
                 end
-                local baseSnappiness = camConfig.Snappiness or 0.1
-                local direction = (predictedPos - Camera.CFrame.Position).Unit
-                local currentLook = Camera.CFrame.LookVector
-                local dot = math.clamp(currentLook:Dot(direction), -1, 1)
-                local progress = (dot + 1) / 2
-                local eased = cubicInOut(1 - progress)
-                local dynamicSnappiness = baseSnappiness * (0.4 + eased * 1.6)
-                dynamicSnappiness = math.clamp(dynamicSnappiness, 0, 1)
-                local newLook = currentLook:lerp(direction, dynamicSnappiness)
-                Camera.CFrame = CFrame.new(Camera.CFrame.Position, Camera.CFrame.Position + newLook)
             end
         end
     end
-    updateDebugGUI()
-    refreshESP()
+
+    ProcessUIUpdate()
+    DispatchEntityRenders()
 end))
 
-if general and general.Console then print(" [+] Loaded") end
-if general and general.FpsUnlocker then setfpscap(999) end
+if MainConfig and MainConfig.Console then print(" [+] Subsystems Active") end
+if MainConfig and MainConfig.FpsUnlocker and setfpscap then setfpscap(999) end
