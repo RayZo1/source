@@ -1,4 +1,4 @@
--- v1.vwqqv
+-- v1
 if _G.SessionStarted then
     if shared.config.General.Console then
         print(" [+] klient.fun -> Synced")
@@ -62,7 +62,6 @@ local function refreshSettings()
 
     updateWeaponCategory()
 end
-refreshSettings()
 
 local ShotgunTypes = {
     ['[Double-Barrel SG]'] = true,
@@ -147,7 +146,7 @@ OutputLabel.TextSize = 14
 OutputLabel.TextXAlignment = Enum.TextXAlignment.Left
 OutputLabel.RichText = true
 OutputLabel.Parent = ScreenGui
-
+refreshSettings()
 local function registerESP(plr)
     if State.ESPLabels[plr.UserId] then return end
     local label = Drawing.new("Text")
