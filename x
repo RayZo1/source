@@ -62,6 +62,7 @@ local function refreshSettings()
 
     updateWeaponCategory()
 end
+refreshSettings()
 
 local ShotgunTypes = {
     ['[Double-Barrel SG]'] = true,
@@ -513,7 +514,7 @@ for _, plr in ipairs(Players:GetPlayers()) do
         plr.Character.Humanoid.Died:Connect(refreshValidPlayers)
     end
 end
-refreshSettings()
+
 task.spawn(function()
     while task.wait(3) do
         if shared._configUpdated then
