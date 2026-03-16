@@ -303,200 +303,6 @@ __index = hookmetamethod(game, "__index", function(self, key)
 end)
 
 -- ============================================================================
--- Bullet Redirection (GunClient override)
--- ============================================================================
-local function setupBulletRedirection(char)
-    if not Redir.Enabled then return end
-
-    local function patchTool(tool)
-        if State.OverwrittenTools[tool] then return end
-        State.OverwrittenTools[tool] = true
-
-        -- Check if weapon is in redirection list
-        local weaponList = Redir.Weapons
-        local shouldRedirect = false
-        for _, w in ipairs(weaponList) do
-            if tool.Name == w then
-                shouldRedirect = true
-                break
-            end
-        end
-        if not shouldRedirect then return end
-
-        -- Helper: get aim direction using redirection prediction
-        local function getAimDirection(origin)
-            if State.Target and State.Target.Character then
-                local char = State.Target.Character
-                local part = char:FindFirstChild("Head") or char:FindFirstChild("HumanoidRootPart")
-                if part then
-                    local vel = part.Velocity or Vector3.new()
-                    local pred = Redir.Prediction
-                    local targetPos = part.Position + Vector3.new(vel.X*pred.X, vel.Y*pred.Y, vel.Z*pred.Z)
-                    return (targetPos - origin).Unit
-                end
-            end
-            -- Fallback to mouse
-            return (Mouse.Hit.Position - origin).Unit
-        end
-
-        -- Single-shot weapons (GunClient)
-        if tool:FindFirstChild("GunClient") then
-            tool.GunClient:Destroy()
-            local handle = tool:WaitForChild("Handle")
-            local range = tool:FindFirstChild("Range") and tool.Range.Value or 200
-            local remoteEvent = tool:WaitForChild("RemoteEvent") or { FireServer = function() end }
-            local GunHandler = require(ReplicatedStorage.Modules.GunHandler)
-            local Maid = require(ReplicatedStorage.Modules.Maid).new()
-
-            Maid:GiveTask(tool.AncestryChanged:Connect(function()
-                if tool.Parent ~= LocalPlayer.Character and tool.Parent ~= LocalPlayer:FindFirstChildWhichIsA("Backpack") then
-                    Maid:DoCleaning()
-                end
-            end))
-
-            local lastShot = 0
-            local cooldown = tool:FindFirstChild("ShootingCooldown") and tool.ShootingCooldown.Value or 0.2
-            Maid:GiveTask(tool.Activated:Connect(function()
-                if tick() - lastShot >= cooldown then
-                    lastShot = tick()
-                    remoteEvent:FireServer("Shoot")
-
-                    local origin = (handle.CFrame * CFrame.new(-1, 0.4, 0)).Position
-                    local dir = getAimDirection(origin)
-                    local aimPos = origin + dir * range
-
-                    local p1,p2,p3 = GunHandler.shoot({
-                        Shooter = LocalPlayer.Character,
-                        Handle = handle,
-                        ForcedOrigin = origin,
-                        AimPosition = aimPos,
-                        BeamColor = Color3.new(1,0.545,0.149),
-                        Range = range
-                    })
-                    ReplicatedStorage.MainEvent:FireServer("ShootGun", handle, origin, p1, p2, p3)
-                    remoteEvent:FireServer()
-                end
-            end))
-        end
-
-        -- Shotgun weapons (GunClientShotgun)
-        if tool:FindFirstChild("GunClientShotgun") then
-            tool.GunClientShotgun:Destroy()
-            local handle = tool:WaitForChild("Handle")
-            local range = tool:FindFirstChild("Range") and tool.Range.Value or 200
-            local remoteEvent = tool:WaitForChild("RemoteEvent") or { FireServer = function() end }
-            local GunHandler = require(ReplicatedStorage.Modules.GunHandler)
-            local Maid = require(ReplicatedStorage.Modules.Maid).new()
-            local bulletCount = 5  -- could be read from config
-
-            Maid:GiveTask(tool.AncestryChanged:Connect(function()
-                if tool.Parent ~= LocalPlayer.Character and tool.Parent ~= LocalPlayer:FindFirstChildWhichIsA("Backpack") then
-                    Maid:DoCleaning()
-                end
-            end))
-
-            local lastShot = 0
-            local cooldown = tool:FindFirstChild("ShootingCooldown") and tool.ShootingCooldown.Value or 0.4
-            Maid:GiveTask(tool.Activated:Connect(function()
-                if tick() - lastShot >= cooldown then
-                    lastShot = tick()
-                    remoteEvent:FireServer("Shoot")
-                    local serverTime = Workspace:GetServerTimeNow()
-
-                    for i = 1, bulletCount do
-                        local spread = Vector3.new(
-                            (math.random()>0.5 and math.random()*0.05 or -math.random()*0.05),
-                            (math.random()>0.5 and math.random()*0.1  or -math.random()*0.1),
-                            (math.random()>0.5 and math.random()*0.05 or -math.random()*0.05)
-                        )
-                        local origin = (handle.CFrame * CFrame.new(-1, 0.4, 0)).Position
-                        local dir = getAimDirection(origin) + spread
-                        local aimPos = origin + dir * range
-
-                        local p1,p2,p3 = GunHandler.shoot({
-                            Shooter = LocalPlayer.Character,
-                            Handle = handle,
-                            ForcedOrigin = origin,
-                            AimPosition = aimPos,
-                            BeamColor = Color3.new(1,0.545,0.149),
-                            Range = range
-                        })
-                        ReplicatedStorage.MainEvent:FireServer("ShootGun", handle, origin, p1, p2, p3, serverTime)
-                    end
-                    remoteEvent:FireServer()
-                end
-            end))
-        end
-
-        -- Burst weapons (GunClientBurst)
-        if tool:FindFirstChild("GunClientBurst") then
-            tool.GunClientBurst:Destroy()
-            local handle = tool:WaitForChild("Handle")
-            local range = tool:FindFirstChild("Range") and tool.Range.Value or 200
-            local remoteEvent = tool:WaitForChild("RemoteEvent") or { FireServer = function() end }
-            local GunHandler = require(ReplicatedStorage.Modules.GunHandler)
-            local Maid = require(ReplicatedStorage.Modules.Maid).new()
-            local burstCooldown = tool:FindFirstChild("ShootingCooldown") and tool.ShootingCooldown.Value or 0.1
-            local toleranceCd = tool:FindFirstChild("ToleranceCooldown") and tool.ToleranceCooldown.Value or 0.3
-
-            Maid:GiveTask(tool.AncestryChanged:Connect(function()
-                if tool.Parent ~= LocalPlayer.Character and tool.Parent ~= LocalPlayer:FindFirstChildWhichIsA("Backpack") then
-                    Maid:DoCleaning()
-                end
-            end))
-
-            local lastShot = 0
-            Maid:GiveTask(tool.Activated:Connect(function()
-                if tick() - lastShot >= toleranceCd then
-                    lastShot = tick()
-                    remoteEvent:FireServer("Shoot")
-                    local serverTime = Workspace:GetServerTimeNow()
-                    local ammo = tool:FindFirstChild("Ammo") and tool.Ammo.Value or 30
-                    local burstCount = math.min(ammo, 3)
-
-                    task.spawn(function()
-                        for i = 1, burstCount do
-                            local origin = (handle.CFrame * CFrame.new(-1, 0.4, 0)).Position
-                            local dir = getAimDirection(origin)
-                            local aimPos = origin + dir * range
-
-                            local p1,p2,p3 = GunHandler.shoot({
-                                Shooter = LocalPlayer.Character,
-                                Handle = handle,
-                                ForcedOrigin = origin,
-                                AimPosition = aimPos,
-                                BeamColor = Color3.new(1,0.545,0.149),
-                                Range = range
-                            })
-                            ReplicatedStorage.MainEvent:FireServer("ShootGun", handle, origin, p1, p2, p3, serverTime)
-                            if i < burstCount then
-                                task.wait(burstCooldown + 0.0095)
-                            end
-                        end
-                        remoteEvent:FireServer()
-                    end)
-                end
-            end))
-        end
-    end
-
-    -- Connect to tool added
-    char.ChildAdded:Connect(function(child)
-        if child:IsA("Tool") then
-            task.wait()  -- let tool initialize
-            patchTool(child)
-        end
-    end)
-
-    -- Patch existing tools
-    for _, tool in ipairs(char:GetChildren()) do
-        if tool:IsA("Tool") then
-            patchTool(tool)
-        end
-    end
-end
-
--- ============================================================================
 -- Main Render Loop
 -- ============================================================================
 RunService.RenderStepped:Connect(function()
@@ -626,9 +432,7 @@ UIS.InputEnded:Connect(function(input, gameProcessed)
     end
 end)
 
--- ============================================================================
--- Player/Character Tracking
--- ============================================================================
+-- plr tracking
 local function setupPlayer(plr)
     if plr == LocalPlayer then return end
     registerESP(plr)
@@ -649,7 +453,7 @@ local function setupPlayer(plr)
     end)
 end
 
--- Initial players
+-- plrs
 for _, plr in ipairs(Players:GetPlayers()) do
     setupPlayer(plr)
 end
@@ -664,11 +468,10 @@ Players.PlayerRemoving:Connect(function(plr)
     end
 end)
 
--- Local player character changes
+-- local plr changes
 LocalPlayer.CharacterAdded:Connect(function(char)
     char:WaitForChild("HumanoidRootPart")
     updateWeaponCategory()
-    setupBulletRedirection(char)   -- activate redirection on new character
     char.ChildAdded:Connect(function(child)
         if child:IsA("Tool") then
             task.wait()
@@ -679,7 +482,6 @@ end)
 
 if LocalPlayer.Character then
     updateWeaponCategory()
-    setupBulletRedirection(LocalPlayer.Character)   -- initial redirection
 end
 
 -- Refresh valid players periodically or on events
