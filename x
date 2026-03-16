@@ -45,7 +45,7 @@ local State = {
 }
 
 local Settings = shared.config  -- start with the initial config
-local General, Silent, CameraAim, Trigger, ESPcfg, Conditions, FilterSelected, FilterSelecting, Redir
+local General, Silent, CameraAim, Trigger, ESPcfg, Conditions, FilterSelected, FilterSelecting
 
 local function refreshSettings()
     Settings = shared.config  -- grab latest
@@ -57,7 +57,6 @@ local function refreshSettings()
     Conditions = Settings.Conditions
     FilterSelected = Conditions["Whilst a player is selected"]
     FilterSelecting = Conditions["Whilst selecting a player"]
-    Redir = Silent.Redirection
 
     -- update
     State.ESPEnabled = ESPcfg.Enabled
