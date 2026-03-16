@@ -1,709 +1,723 @@
--- Configuration Validator and Event Poller
-if _G.SessionStarted == true then 
-    if shared.config.General and shared.config.General.Console == true then
+if _G.SessionStarted then
+    if shared.config.General.Console then
         print(" [+] Synchronized")
     end
     shared._configUpdated = true
     return
 end
 _G.SessionStarted = true
-if shared.config.General and shared.config.General.Console == true then
+
+if shared.config.General.Console then
     print(" [+] Initializing")
 end
 
-local function executeSafely(delegate) return delegate end;
+-- Services & globals
+local Players = game:GetService("Players")
+local UIS = game:GetService("UserInputService")
+local Workspace = game:GetService("Workspace")
+local RunService = game:GetService("RunService")
+local CoreGui = game:GetService("CoreGui")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
-if not checkcaller then checkcaller = function() return false end end
+local LocalPlayer = Players.LocalPlayer
+local Mouse = LocalPlayer:GetMouse()
+local Camera = Workspace.CurrentCamera
 
--- Core Providers
-local PlayerService = game:GetService("Players")
-local InputProvider = game:GetService("UserInputService")
-local WorldSpace = game:GetService("Workspace")
-local ExecutionLoop = game:GetService("RunService")
-local ActiveCamera = WorldSpace.CurrentCamera
-local LocalClient = PlayerService.LocalPlayer
-local PrimaryController = LocalClient:GetMouse()
+-- Configuration shortcuts
+local Settings = shared.config
+local General = Settings.General
+local Silent = Settings['Silent Aim']
+local CameraAim = Settings['Camera Aimbot']
+local Trigger = Settings['Trigger Bot']
+local ESPcfg = Settings['ESP']
+local Conditions = Settings.Conditions
+local FilterSelected = Conditions["Whilst a player is selected"]
+local FilterSelecting = Conditions["Whilst selecting a player"]
+local Redir = Silent.Redirection   -- new redirection config
 
--- Cache Nodes
-local DataStructs = shared.config
-local MainConfig = DataStructs.General
-local ModuleB = DataStructs['Silent Aim']
-local ModuleC = DataStructs['Camera Aimbot']
-local ModuleD = DataStructs['Trigger Bot']
-local ModuleE = DataStructs['ESP']
-local FilterA = DataStructs.Conditions["Whilst a player is selected"]
-local FilterB = DataStructs.Conditions["Whilst selecting a player"]
+-- Precomputed weapon tables
+local ShotgunTypes = {
+    ['[Double-Barrel SG]'] = true,
+    ['[TacticalShotgun]'] = true,
+    ['[Shotgun]'] = true,
+    ['[DrumShotgun]'] = true
+}
+local PistolTypes = {
+    ['[Revolver]'] = true,
+    ['[Silencer]'] = true,
+    ['[Glock]'] = true
+}
 
--- Execution State
-local GlobalInterface = nil
-local TrackingInterface = nil
-local ActivationTimestamp = 0
-local SignalActive = false
-local SignalToggled = false
-local OriginalIndexHandler
-local ZoneA = nil
-local ZoneA_Visible = true
-local ZoneCamera = nil
-local ZoneTrigger = nil
-local InterfaceLabels = {}
+-- ============================================================================
+-- State
+-- ============================================================================
+local State = {
+    Target = nil,
+    TrackingTarget = nil,
+    WeaponCategory = "Others",      -- "Shotguns", "Pistols", "Others"
+    WeaponName = nil,
+    SilentFOV = Vector3.new(9999,9999,9999),
+    CameraFOV = Vector3.new(9999,9999,9999),
+    TriggerFOV = Vector3.new(0,0,0),
+    TriggerActive = false,
+    TriggerToggled = false,
+    LastTriggerTime = 0,
+    ESPEnabled = ESPcfg.Enabled,
+    UIEnabled = General.Info.Enabled,
+    UIPos = General.Info.Position,
+    ValidPlayers = {},              -- list of players with alive characters
+    ESPLabels = {},                 -- userId -> {node=player, label=Drawing}
+    OverwrittenTools = {},          -- track which tools we've already patched
+}
 
--- UI Registry
-local UserLayer = Instance.new("ScreenGui")
-UserLayer.Name = "UserLayer_Runtime"
-UserLayer.ResetOnSpawn = false
-UserLayer.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
-UserLayer.Parent = game:GetService("CoreGui")
-
-local OutputDisplay = Instance.new("TextLabel")
-OutputDisplay.Name = "OutputDisplay_Runtime"
-OutputDisplay.Size = UDim2.new(0, 200, 0, 20)
-OutputDisplay.Position = UDim2.new(0, MainConfig.Info.Position.X, 0, MainConfig.Info.Position.Y)
-OutputDisplay.BackgroundTransparency = 1
-OutputDisplay.Text = ""
-OutputDisplay.TextColor3 = Color3.new(1, 1, 1)
-OutputDisplay.TextStrokeTransparency = 0.8
-OutputDisplay.Font = Enum.Font.Gotham
-OutputDisplay.TextSize = 14
-OutputDisplay.TextXAlignment = Enum.TextXAlignment.Left
-OutputDisplay.RichText = true
-OutputDisplay.Parent = UserLayer
-
--- Cached Math/Physics Parameters
-local GlobalRayParams = RaycastParams.new()
-GlobalRayParams.FilterType = Enum.RaycastFilterType.Blacklist
-GlobalRayParams.IgnoreWater = true
-
--- Pre-compiled Lookups
-local TypeClassA = { ["Double-Barrel SG"] = true, ["TacticalShotgun"] = true, ["Shotgun"] = true, ["DrumShotgun"] = true }
-local TypeClassB = { ["Revolver"] = true, ["Silencer"] = true, ["Glock"] = true }
-
-local function ResetVisualNodes()
-    if ZoneA then ZoneA:Destroy(); ZoneA = nil end
-    if ZoneCamera then ZoneCamera:Destroy(); ZoneCamera = nil end
-    if ZoneTrigger then ZoneTrigger:Destroy(); ZoneTrigger = nil end
+-- Utility: check if player is knocked
+local function isKnocked(plr)
+    local char = plr.Character
+    if not char then return false end
+    local effects = char:FindFirstChild("BodyEffects")
+    return effects and effects:FindFirstChild("K.O") and effects["K.O"].Value
 end
 
-local function ProcessUIUpdate()
-    if shared._configUpdated then shared._configUpdated = false end
-    local configParams = MainConfig.Info
-    UserLayer.Enabled = configParams.Enabled
-    if not configParams.Enabled then return end
-    OutputDisplay.Position = UDim2.new(0, configParams.Position.X, 0, configParams.Position.Y)
-    
-    if GlobalInterface and GlobalInterface.Character then
-        local displayString = GlobalInterface.DisplayName or GlobalInterface.Name
-        OutputDisplay.Text = "target: " .. displayString
-        OutputDisplay.TextColor3 = Color3.new(1, 1, 1)
+-- Refresh list of valid players (alive, with HumanoidRootPart)
+local function refreshValidPlayers()
+    local new = {}
+    for _, plr in ipairs(Players:GetPlayers()) do
+        if plr ~= LocalPlayer and plr.Character and plr.Character:FindFirstChild("HumanoidRootPart") then
+            local hum = plr.Character:FindFirstChildOfClass("Humanoid")
+            if hum and hum.Health > 0 then
+                table.insert(new, plr)
+            end
+        end
+    end
+    State.ValidPlayers = new
+end
+
+-- Update weapon category and FOVs
+local function updateWeaponCategory()
+    local char = LocalPlayer.Character
+    local tool = char and char:FindFirstChildOfClass("Tool")
+    if tool then
+        if ShotgunTypes[tool.Name] then
+            State.WeaponCategory = "Shotguns"
+        elseif PistolTypes[tool.Name] then
+            State.WeaponCategory = "Pistols"
+        else
+            State.WeaponCategory = "Others"
+        end
+        State.WeaponName = tool.Name
     else
-        OutputDisplay.Text = "target: Idle"
-        OutputDisplay.TextColor3 = Color3.new(0.7, 0.7, 0.7)
+        State.WeaponCategory = "Others"
+        State.WeaponName = nil
+    end
+
+    -- Helper to get FOV size from a module
+    local function getFOVSize(module)
+        if not module.FOV.Enabled then return Vector3.new(9999,9999,9999) end
+        local wcfg = module.FOV['Weapon Configuration']
+        if wcfg and wcfg.Enabled then
+            local sz = wcfg[State.WeaponCategory]
+            if sz then return Vector3.new(sz.X, sz.Y, sz.Z) end
+        end
+        local sz = module.FOV.Size
+        return Vector3.new(sz.X, sz.Y, sz.Z)
+    end
+
+    State.SilentFOV = getFOVSize(Silent)
+    State.CameraFOV = getFOVSize(CameraAim)
+    State.TriggerFOV = Vector3.new(Trigger.FOV.X, Trigger.FOV.Y, Trigger.FOV.Z)
+end
+
+-- ============================================================================
+-- ESP
+-- ============================================================================
+local ScreenGui = Instance.new("ScreenGui")
+ScreenGui.Name = "UserLayer_Runtime"
+ScreenGui.ResetOnSpawn = false
+ScreenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+ScreenGui.Parent = CoreGui
+
+local OutputLabel = Instance.new("TextLabel")
+OutputLabel.Name = "OutputDisplay_Runtime"
+OutputLabel.Size = UDim2.new(0, 200, 0, 20)
+OutputLabel.Position = UDim2.new(0, State.UIPos.X, 0, State.UIPos.Y)
+OutputLabel.BackgroundTransparency = 1
+OutputLabel.Text = ""
+OutputLabel.TextColor3 = Color3.new(1,1,1)
+OutputLabel.TextStrokeTransparency = 0.8
+OutputLabel.Font = Enum.Font.Gotham
+OutputLabel.TextSize = 14
+OutputLabel.TextXAlignment = Enum.TextXAlignment.Left
+OutputLabel.RichText = true
+OutputLabel.Parent = ScreenGui
+ScreenGui.Enabled = State.UIEnabled
+
+local function registerESP(plr)
+    if State.ESPLabels[plr.UserId] then return end
+    local label = Drawing.new("Text")
+    label.Size = 14
+    label.Center = true
+    label.Outline = true
+    label.OutlineColor = Color3.fromRGB(0,0,0)
+    label.Color = ESPcfg.Color
+    label.Font = Drawing.Fonts.Plex
+    label.Visible = false
+    label.ZIndex = 1000
+    State.ESPLabels[plr.UserId] = { node = plr, label = label }
+end
+
+local function unregisterESP(plr)
+    local entry = State.ESPLabels[plr.UserId]
+    if entry then
+        entry.label:Remove()
+        State.ESPLabels[plr.UserId] = nil
     end
 end
 
-local function RegisterEntity(instanceNode)
-    if instanceNode == LocalClient then return end
-    local interfaceObject = {
-        node = instanceNode,
-        labelTag = Drawing.new("Text"),
-    }
-    interfaceObject.labelTag.Size = 14
-    interfaceObject.labelTag.Center = true
-    interfaceObject.labelTag.Outline = true
-    interfaceObject.labelTag.OutlineColor = Color3.fromRGB(0,0,0)
-    interfaceObject.labelTag.Color = ModuleE.Color
-    interfaceObject.labelTag.Font = Drawing.Fonts.Plex
-    interfaceObject.labelTag.Visible = false
-    interfaceObject.labelTag.ZIndex = 1000
-    InterfaceLabels[instanceNode.UserId] = interfaceObject
-end
-
-local function UnregisterEntity(instanceNode)
-    local interfaceObject = InterfaceLabels[instanceNode.UserId]
-    if interfaceObject then
-        interfaceObject.labelTag:Remove()
-        InterfaceLabels[instanceNode.UserId] = nil
-    end
-end
-
-local function DispatchEntityRenders()
-    if not ModuleE.Enabled then
-        for _, interfaceObject in pairs(InterfaceLabels) do
-            interfaceObject.labelTag.Visible = false
+local function updateESP()
+    if not State.ESPEnabled then
+        for _, entry in pairs(State.ESPLabels) do
+            entry.label.Visible = false
         end
         return
     end
-    for identityId, interfaceObject in pairs(InterfaceLabels) do
-        local instanceNode = interfaceObject.node
-        if not instanceNode or not instanceNode.Parent then
-            interfaceObject.labelTag.Visible = false
-            interfaceObject.labelTag:Remove()
-            InterfaceLabels[identityId] = nil
+    for _, entry in pairs(State.ESPLabels) do
+        local plr = entry.node
+        local char = plr.Character
+        if not char or not char.Parent then
+            entry.label.Visible = false
             continue
         end
-        
-        local entityModel = instanceNode.Character
-        if entityModel and entityModel.Parent and entityModel:FindFirstChild("HumanoidRootPart") and entityModel:FindFirstChild("Head") then
-            local behaviorState = entityModel:FindFirstChildOfClass("Humanoid")
-            if not behaviorState or behaviorState.Health <= 0 then
-                interfaceObject.labelTag.Visible = false
-                continue
-            end
-            
-            local cNode = entityModel.Head
-            local baseNode = entityModel.HumanoidRootPart
-            local interfaceCoords, inFrustum
-            
-            if ModuleE['Name Above'] then
-                interfaceCoords, inFrustum = ActiveCamera:WorldToViewportPoint(cNode.Position + Vector3.new(0, 1.5, 0))
-            else
-                interfaceCoords, inFrustum = ActiveCamera:WorldToViewportPoint(baseNode.Position - Vector3.new(0, 2.8, 0))
-            end
-            
-            if inFrustum and interfaceCoords.Z > 0 then
-                interfaceObject.labelTag.Position = Vector2.new(interfaceCoords.X, interfaceCoords.Y)
-                if ModuleE['Use Display Name'] then
-                    interfaceObject.labelTag.Text = instanceNode.DisplayName
-                else
-                    interfaceObject.labelTag.Text = instanceNode.Name
-                end
-                
-                if GlobalInterface == instanceNode then
-                    interfaceObject.labelTag.Color = ModuleE['Target Color']
-                else
-                    interfaceObject.labelTag.Color = ModuleE.Color
-                end
-                interfaceObject.labelTag.Visible = true
-            else
-                interfaceObject.labelTag.Visible = false
-            end
+        local root = char:FindFirstChild("HumanoidRootPart")
+        local head = char:FindFirstChild("Head")
+        local hum = char:FindFirstChildOfClass("Humanoid")
+        if not root or not head or not hum or hum.Health <= 0 then
+            entry.label.Visible = false
+            continue
+        end
+        local pos = head.Position + Vector3.new(0, 1.5, 0)
+        local screen, onScreen = Camera:WorldToViewportPoint(pos)
+        if onScreen and screen.Z > 0 then
+            entry.label.Position = Vector2.new(screen.X, screen.Y)
+            entry.label.Text = ESPcfg['Use Display Name'] and plr.DisplayName or plr.Name
+            entry.label.Color = (plr == State.Target) and ESPcfg['Target Color'] or ESPcfg.Color
+            entry.label.Visible = true
         else
-            interfaceObject.labelTag.Visible = false
+            entry.label.Visible = false
         end
     end
 end
 
-for _, participant in pairs(PlayerService:GetPlayers()) do
-    if participant ~= LocalClient and participant.Character and participant.Character:FindFirstChild("HumanoidRootPart") then
-        RegisterEntity(participant)
-    end
-    participant.CharacterAdded:Connect(function(model)
-        UnregisterEntity(participant)
-        model:WaitForChild("HumanoidRootPart")
-        task.wait(0.1)
-        RegisterEntity(participant)
-    end)
-    participant.CharacterRemoving:Connect(function()
-        UnregisterEntity(participant)
-    end)
+-- ============================================================================
+-- Helper Functions
+-- ============================================================================
+local RayParams = RaycastParams.new()
+RayParams.FilterType = Enum.RaycastFilterType.Blacklist
+RayParams.IgnoreWater = true
+
+local function hasLineOfSight(part)
+    if not part then return false end
+    local origin = Camera.CFrame.Position
+    local dir = part.Position - origin
+    RayParams.FilterDescendantsInstances = { LocalPlayer.Character }
+    local result = Workspace:Raycast(origin, dir, RayParams)
+    return result == nil or result.Instance:IsDescendantOf(part.Parent)
 end
 
-PlayerService.PlayerAdded:Connect(function(participant)
-    if participant ~= LocalClient then
-        participant.CharacterAdded:Connect(function(model)
-            UnregisterEntity(participant)
-            model:WaitForChild("HumanoidRootPart")
-            task.wait(0.1)
-            RegisterEntity(participant)
-        end)
-        participant.CharacterRemoving:Connect(function()
-            UnregisterEntity(participant)
-        end)
+local function isMouseInBox(char, boxSize)
+    local root = char:FindFirstChild("HumanoidRootPart")
+    if not root then return false end
+    local half = boxSize * 0.5
+    local min = root.Position - half
+    local max = root.Position + half
+    local ray = Mouse.UnitRay
+    local o, d = ray.Origin, ray.Direction
+    local tmin = (min - o) / d
+    local tmax = (max - o) / d
+    local t1x, t1y, t1z = math.min(tmin.X, tmax.X), math.min(tmin.Y, tmax.Y), math.min(tmin.Z, tmax.Z)
+    local t2x, t2y, t2z = math.max(tmin.X, tmax.X), math.max(tmin.Y, tmax.Y), math.max(tmin.Z, tmax.Z)
+    local tnear = math.max(t1x, t1y, t1z)
+    local tfar = math.min(t2x, t2y, t2z)
+    return tnear <= tfar and tfar >= 0
+end
+
+local function getBestTarget(conditions)
+    local best, bestDist = nil, math.huge
+    local mousePos = Vector2.new(Mouse.X, Mouse.Y)
+    for _, plr in ipairs(State.ValidPlayers) do
+        if not conditions["Knock Check"] or not isKnocked(plr) then
+            local char = plr.Character
+            local root = char and char:FindFirstChild("HumanoidRootPart")
+            if root then
+                local screen, onScreen = Camera:WorldToViewportPoint(root.Position)
+                if onScreen then
+                    local dist = (Vector2.new(screen.X, screen.Y) - mousePos).Magnitude
+                    if dist < bestDist and (not conditions.Visible or hasLineOfSight(root)) then
+                        best = plr
+                        bestDist = dist
+                    end
+                end
+            end
+        end
+    end
+    return best
+end
+
+-- ============================================================================
+-- Silent Aim Hook
+-- ============================================================================
+local __index
+__index = hookmetamethod(game, "__index", function(self, key)
+    if self == Mouse and (key == "Hit" or key == "Target") and State.Target then
+        local char = State.Target.Character
+        if char then
+            local vis = not FilterSelected.Visible or hasLineOfSight(char:FindFirstChild("Head"))
+            if vis and isMouseInBox(char, State.SilentFOV) then
+                local hitPart = Silent['Hit Part']
+                local targetPos
+                if hitPart == "Closest Point" then
+                    local head = char:FindFirstChild("Head")
+                    if head then
+                        local vel = head.Velocity or Vector3.new()
+                        local pred = Silent.Prediction
+                        targetPos = head.Position + Vector3.new(vel.X*pred.X, vel.Y*pred.Y, vel.Z*pred.Z)
+                    end
+                else
+                    local part = char:FindFirstChild(hitPart) or char:FindFirstChild("Head")
+                    if part then
+                        local vel = part.Velocity or Vector3.new()
+                        local pred = Silent.Prediction
+                        targetPos = part.Position + Vector3.new(vel.X*pred.X, vel.Y*pred.Y, vel.Z*pred.Z)
+                    end
+                end
+                if targetPos then
+                    if key == "Hit" then
+                        return CFrame.new(targetPos)
+                    else
+                        return char:FindFirstChild("Head")  -- fallback
+                    end
+                end
+            end
+        end
+    end
+    return __index(self, key)
+end)
+
+-- ============================================================================
+-- Bullet Redirection (GunClient override)
+-- ============================================================================
+local function setupBulletRedirection(char)
+    if not Redir.Enabled then return end
+
+    local function patchTool(tool)
+        if State.OverwrittenTools[tool] then return end
+        State.OverwrittenTools[tool] = true
+
+        -- Check if weapon is in redirection list
+        local weaponList = Redir.Weapons
+        local shouldRedirect = false
+        for _, w in ipairs(weaponList) do
+            if tool.Name == w then
+                shouldRedirect = true
+                break
+            end
+        end
+        if not shouldRedirect then return end
+
+        -- Helper: get aim direction using redirection prediction
+        local function getAimDirection(origin)
+            if State.Target and State.Target.Character then
+                local char = State.Target.Character
+                local part = char:FindFirstChild("Head") or char:FindFirstChild("HumanoidRootPart")
+                if part then
+                    local vel = part.Velocity or Vector3.new()
+                    local pred = Redir.Prediction
+                    local targetPos = part.Position + Vector3.new(vel.X*pred.X, vel.Y*pred.Y, vel.Z*pred.Z)
+                    return (targetPos - origin).Unit
+                end
+            end
+            -- Fallback to mouse
+            return (Mouse.Hit.Position - origin).Unit
+        end
+
+        -- Single-shot weapons (GunClient)
+        if tool:FindFirstChild("GunClient") then
+            tool.GunClient:Destroy()
+            local handle = tool:WaitForChild("Handle")
+            local range = tool:FindFirstChild("Range") and tool.Range.Value or 200
+            local remoteEvent = tool:WaitForChild("RemoteEvent") or { FireServer = function() end }
+            local GunHandler = require(ReplicatedStorage.Modules.GunHandler)
+            local Maid = require(ReplicatedStorage.Modules.Maid).new()
+
+            Maid:GiveTask(tool.AncestryChanged:Connect(function()
+                if tool.Parent ~= LocalPlayer.Character and tool.Parent ~= LocalPlayer:FindFirstChildWhichIsA("Backpack") then
+                    Maid:DoCleaning()
+                end
+            end))
+
+            local lastShot = 0
+            local cooldown = tool:FindFirstChild("ShootingCooldown") and tool.ShootingCooldown.Value or 0.2
+            Maid:GiveTask(tool.Activated:Connect(function()
+                if tick() - lastShot >= cooldown then
+                    lastShot = tick()
+                    remoteEvent:FireServer("Shoot")
+
+                    local origin = (handle.CFrame * CFrame.new(-1, 0.4, 0)).Position
+                    local dir = getAimDirection(origin)
+                    local aimPos = origin + dir * range
+
+                    local p1,p2,p3 = GunHandler.shoot({
+                        Shooter = LocalPlayer.Character,
+                        Handle = handle,
+                        ForcedOrigin = origin,
+                        AimPosition = aimPos,
+                        BeamColor = Color3.new(1,0.545,0.149),
+                        Range = range
+                    })
+                    ReplicatedStorage.MainEvent:FireServer("ShootGun", handle, origin, p1, p2, p3)
+                    remoteEvent:FireServer()
+                end
+            end))
+        end
+
+        -- Shotgun weapons (GunClientShotgun)
+        if tool:FindFirstChild("GunClientShotgun") then
+            tool.GunClientShotgun:Destroy()
+            local handle = tool:WaitForChild("Handle")
+            local range = tool:FindFirstChild("Range") and tool.Range.Value or 200
+            local remoteEvent = tool:WaitForChild("RemoteEvent") or { FireServer = function() end }
+            local GunHandler = require(ReplicatedStorage.Modules.GunHandler)
+            local Maid = require(ReplicatedStorage.Modules.Maid).new()
+            local bulletCount = 5  -- could be read from config
+
+            Maid:GiveTask(tool.AncestryChanged:Connect(function()
+                if tool.Parent ~= LocalPlayer.Character and tool.Parent ~= LocalPlayer:FindFirstChildWhichIsA("Backpack") then
+                    Maid:DoCleaning()
+                end
+            end))
+
+            local lastShot = 0
+            local cooldown = tool:FindFirstChild("ShootingCooldown") and tool.ShootingCooldown.Value or 0.4
+            Maid:GiveTask(tool.Activated:Connect(function()
+                if tick() - lastShot >= cooldown then
+                    lastShot = tick()
+                    remoteEvent:FireServer("Shoot")
+                    local serverTime = Workspace:GetServerTimeNow()
+
+                    for i = 1, bulletCount do
+                        local spread = Vector3.new(
+                            (math.random()>0.5 and math.random()*0.05 or -math.random()*0.05),
+                            (math.random()>0.5 and math.random()*0.1  or -math.random()*0.1),
+                            (math.random()>0.5 and math.random()*0.05 or -math.random()*0.05)
+                        )
+                        local origin = (handle.CFrame * CFrame.new(-1, 0.4, 0)).Position
+                        local dir = getAimDirection(origin) + spread
+                        local aimPos = origin + dir * range
+
+                        local p1,p2,p3 = GunHandler.shoot({
+                            Shooter = LocalPlayer.Character,
+                            Handle = handle,
+                            ForcedOrigin = origin,
+                            AimPosition = aimPos,
+                            BeamColor = Color3.new(1,0.545,0.149),
+                            Range = range
+                        })
+                        ReplicatedStorage.MainEvent:FireServer("ShootGun", handle, origin, p1, p2, p3, serverTime)
+                    end
+                    remoteEvent:FireServer()
+                end
+            end))
+        end
+
+        -- Burst weapons (GunClientBurst)
+        if tool:FindFirstChild("GunClientBurst") then
+            tool.GunClientBurst:Destroy()
+            local handle = tool:WaitForChild("Handle")
+            local range = tool:FindFirstChild("Range") and tool.Range.Value or 200
+            local remoteEvent = tool:WaitForChild("RemoteEvent") or { FireServer = function() end }
+            local GunHandler = require(ReplicatedStorage.Modules.GunHandler)
+            local Maid = require(ReplicatedStorage.Modules.Maid).new()
+            local burstCooldown = tool:FindFirstChild("ShootingCooldown") and tool.ShootingCooldown.Value or 0.1
+            local toleranceCd = tool:FindFirstChild("ToleranceCooldown") and tool.ToleranceCooldown.Value or 0.3
+
+            Maid:GiveTask(tool.AncestryChanged:Connect(function()
+                if tool.Parent ~= LocalPlayer.Character and tool.Parent ~= LocalPlayer:FindFirstChildWhichIsA("Backpack") then
+                    Maid:DoCleaning()
+                end
+            end))
+
+            local lastShot = 0
+            Maid:GiveTask(tool.Activated:Connect(function()
+                if tick() - lastShot >= toleranceCd then
+                    lastShot = tick()
+                    remoteEvent:FireServer("Shoot")
+                    local serverTime = Workspace:GetServerTimeNow()
+                    local ammo = tool:FindFirstChild("Ammo") and tool.Ammo.Value or 30
+                    local burstCount = math.min(ammo, 3)
+
+                    task.spawn(function()
+                        for i = 1, burstCount do
+                            local origin = (handle.CFrame * CFrame.new(-1, 0.4, 0)).Position
+                            local dir = getAimDirection(origin)
+                            local aimPos = origin + dir * range
+
+                            local p1,p2,p3 = GunHandler.shoot({
+                                Shooter = LocalPlayer.Character,
+                                Handle = handle,
+                                ForcedOrigin = origin,
+                                AimPosition = aimPos,
+                                BeamColor = Color3.new(1,0.545,0.149),
+                                Range = range
+                            })
+                            ReplicatedStorage.MainEvent:FireServer("ShootGun", handle, origin, p1, p2, p3, serverTime)
+                            if i < burstCount then
+                                task.wait(burstCooldown + 0.0095)
+                            end
+                        end
+                        remoteEvent:FireServer()
+                    end)
+                end
+            end))
+        end
+    end
+
+    -- Connect to tool added
+    char.ChildAdded:Connect(function(child)
+        if child:IsA("Tool") then
+            task.wait()  -- let tool initialize
+            patchTool(child)
+        end
+    end)
+
+    -- Patch existing tools
+    for _, tool in ipairs(char:GetChildren()) do
+        if tool:IsA("Tool") then
+            patchTool(tool)
+        end
+    end
+end
+
+-- ============================================================================
+-- Main Render Loop
+-- ============================================================================
+RunService.RenderStepped:Connect(function()
+    -- Update camera reference
+    Camera = Workspace.CurrentCamera
+
+    -- Auto target mode
+    if General.Mode == 'Auto' then
+        local newTarget = getBestTarget(FilterSelected)
+        if newTarget and newTarget ~= State.Target then
+            State.Target = newTarget
+            State.TrackingTarget = newTarget
+        elseif not newTarget and State.Target then
+            State.Target = nil
+            State.TrackingTarget = nil
+        end
+    end
+
+    -- Camera Aimbot
+    if CameraAim.Enabled and State.TrackingTarget and State.TrackingTarget.Character then
+        local char = State.TrackingTarget.Character
+        local head = char:FindFirstChild("Head")
+        if head and hasLineOfSight(head) and isMouseInBox(char, State.CameraFOV) then
+            local mode = CameraAim['Camera Aimbot Checks']
+            local camDist = (Camera.CFrame.Position - Camera.Focus.Position).Magnitude
+            local firstPerson = mode['First Person'] and camDist < 1
+            local thirdPerson = mode['Third Person'] and camDist >= 1
+            local shiftLock = mode['Shift Locked'] and UIS.MouseBehavior == Enum.MouseBehavior.LockCenter
+            local rightClick = not mode['Right Click'] or UIS:IsMouseButtonPressed(Enum.UserInputType.MouseButton2)
+
+            if (firstPerson or thirdPerson or shiftLock) and rightClick then
+                local hitPart = char:FindFirstChild(CameraAim['Hit Part']) or head
+                local vel = hitPart.Velocity or Vector3.new()
+                local pred = CameraAim.Prediction
+                local targetPos = hitPart.Position + Vector3.new(vel.X * pred.X, vel.Y * pred.Y, vel.Z * pred.Z)
+                local direction = (targetPos - Camera.CFrame.Position).Unit
+                local currentLook = Camera.CFrame.LookVector
+                local factor = math.clamp(CameraAim.Snappiness or 0.1, 0, 1)
+                local newLook = currentLook:Lerp(direction, factor)
+                Camera.CFrame = CFrame.new(Camera.CFrame.Position, Camera.CFrame.Position + newLook)
+            end
+        end
+    end
+
+    -- Trigger Bot
+    if Trigger.Enabled and State.Target and State.Target.Character then
+        local mode = Trigger.Activation['Activation Mode']
+        local active = mode == "Always"
+            or (mode == "Hold" and State.TriggerActive)
+            or (mode == "Toggle" and State.TriggerToggled)
+
+        if active and isMouseInBox(State.Target.Character, State.TriggerFOV) then
+            local now = tick()
+            if now - State.LastTriggerTime >= Trigger['Click Cooldown'] then
+                local tool = LocalPlayer.Character and LocalPlayer.Character:FindFirstChildOfClass("Tool")
+                if tool then
+                    tool:Activate()
+                    State.LastTriggerTime = now
+                end
+            end
+        end
+    end
+
+    -- Update UI
+    if State.UIEnabled then
+        OutputLabel.Position = UDim2.new(0, State.UIPos.X, 0, State.UIPos.Y)
+        if State.Target then
+            OutputLabel.Text = "target: " .. (State.Target.DisplayName or State.Target.Name)
+            OutputLabel.TextColor3 = Color3.new(1,1,1)
+        else
+            OutputLabel.Text = "target: Idle"
+            OutputLabel.TextColor3 = Color3.new(0.7,0.7,0.7)
+        end
+    end
+
+    -- Update ESP
+    updateESP()
+end)
+
+-- ============================================================================
+-- Input Handling
+-- ============================================================================
+UIS.InputBegan:Connect(function(input, gameProcessed)
+    if gameProcessed then return end
+
+    -- Toggle target selection
+    if input.KeyCode == Enum.KeyCode[General.Toggle] then
+        if State.Target then
+            State.Target = nil
+            State.TrackingTarget = nil
+        else
+            local newTarget = getBestTarget(FilterSelecting)
+            if newTarget then
+                State.Target = newTarget
+                State.TrackingTarget = newTarget
+            end
+        end
+    end
+
+    -- ESP toggle/hold
+    if input.KeyCode == Enum.KeyCode[ESPcfg.Activation['Activation Bind']] then
+        if ESPcfg.Activation['Activation Mode'] == "Toggle" then
+            State.ESPEnabled = not State.ESPEnabled
+        else
+            State.ESPEnabled = true
+        end
+    end
+
+    -- Trigger bot hold/toggle
+    if input.KeyCode == Enum.KeyCode[Trigger.Activation['Activation Bind']] then
+        local mode = Trigger.Activation['Activation Mode']
+        if mode == "Toggle" then
+            State.TriggerToggled = not State.TriggerToggled
+        elseif mode == "Hold" then
+            State.TriggerActive = true
+        end
     end
 end)
 
-PlayerService.PlayerRemoving:Connect(UnregisterEntity)
-
--- Affinity Check
-local function ValidateAffinity(entity)
-    if not entity then return false end
-    local localFolder = LocalClient:FindFirstChild("DataFolder")
-    local remoteFolder = entity:FindFirstChild("DataFolder")
-    
-    if localFolder and remoteFolder then
-        local localData = localFolder:FindFirstChild("Information")
-        local remoteData = remoteFolder:FindFirstChild("Information")
-        if localData and remoteData then
-            local localVal = localData:FindFirstChild("Crew") and tonumber(localData.Crew.Value)
-            local remoteVal = remoteData:FindFirstChild("Crew") and tonumber(remoteData.Crew.Value)
-            if localVal and remoteVal and localVal > 0 and remoteVal > 0 then
-                return localVal == remoteVal
-            end
-        end
+UIS.InputEnded:Connect(function(input, gameProcessed)
+    if gameProcessed then return end
+    if input.KeyCode == Enum.KeyCode[ESPcfg.Activation['Activation Bind']] and ESPcfg.Activation['Activation Mode'] == "Hold" then
+        State.ESPEnabled = false
     end
-    return false
+    if input.KeyCode == Enum.KeyCode[Trigger.Activation['Activation Bind']] and Trigger.Activation['Activation Mode'] == "Hold" then
+        State.TriggerActive = false
+    end
+end)
+
+-- ============================================================================
+-- Player/Character Tracking
+-- ============================================================================
+local function setupPlayer(plr)
+    if plr == LocalPlayer then return end
+    registerESP(plr)
+
+    plr.CharacterAdded:Connect(function(char)
+        char:WaitForChild("HumanoidRootPart")
+        refreshValidPlayers()
+        registerESP(plr)
+    end)
+
+    plr.CharacterRemoving:Connect(function()
+        refreshValidPlayers()
+        unregisterESP(plr)
+        if State.Target == plr then
+            State.Target = nil
+            State.TrackingTarget = nil
+        end
+    end)
 end
 
--- Efficient Tool Parsing
-local cachedToolName = nil
-local cachedToolClass = 0 -- 0: Other, 1: SG, 2: Pistol
-local function updateCachedTool()
-    local cModel = LocalClient.Character
-    if cModel then
-        local toolItem = cModel:FindFirstChildOfClass("Tool")
-        if toolItem then
-            cachedToolName = toolItem.Name:gsub("[%[%]]", "")
-            if TypeClassA[cachedToolName] then
-                cachedToolClass = 1
-            elseif TypeClassB[cachedToolName] then
-                cachedToolClass = 2
-            else
-                cachedToolClass = 0
-            end
-        else
-            cachedToolName = nil
-            cachedToolClass = 0
+-- Initial players
+for _, plr in ipairs(Players:GetPlayers()) do
+    setupPlayer(plr)
+end
+
+Players.PlayerAdded:Connect(setupPlayer)
+Players.PlayerRemoving:Connect(function(plr)
+    refreshValidPlayers()
+    unregisterESP(plr)
+    if State.Target == plr then
+        State.Target = nil
+        State.TrackingTarget = nil
+    end
+end)
+
+-- Local player character changes
+LocalPlayer.CharacterAdded:Connect(function(char)
+    char:WaitForChild("HumanoidRootPart")
+    updateWeaponCategory()
+    setupBulletRedirection(char)   -- activate redirection on new character
+    char.ChildAdded:Connect(function(child)
+        if child:IsA("Tool") then
+            task.wait()
+            updateWeaponCategory()
         end
+    end)
+end)
+
+if LocalPlayer.Character then
+    updateWeaponCategory()
+    setupBulletRedirection(LocalPlayer.Character)   -- initial redirection
+end
+
+-- Refresh valid players periodically or on events
+refreshValidPlayers()
+Players.PlayerAdded:Connect(refreshValidPlayers)
+Players.PlayerRemoving:Connect(refreshValidPlayers)
+for _, plr in ipairs(Players:GetPlayers()) do
+    if plr.Character then
+        plr.Character.Humanoid.Died:Connect(refreshValidPlayers)
     end
 end
 
-local function GetConfiguredDimensionA()
-    if not ModuleB.FOV.Enabled then return Vector3.new(9999, 9999, 9999) end
-    local params = ModuleB.FOV['Weapon Configuration']
-    if not params or not params.Enabled then
-        local bBox = ModuleB.FOV.Size
-        return Vector3.new(bBox.X or 0, bBox.Y or 0, bBox.Z or 0)
-    end
-    
-    updateCachedTool()
-    local configSet = params.Others
-    if cachedToolClass == 1 then configSet = params.Shotguns
-    elseif cachedToolClass == 2 then configSet = params.Pistols end
-    
-    return Vector3.new(configSet.X or 4, configSet.Y or 6, configSet.Z or 2)
-end
-
-local function GetConfiguredDimensionB()
-    if not ModuleC.FOV.Enabled then return Vector3.new(9999, 9999, 9999) end
-    local params = ModuleC.FOV['Weapon Configuration']
-    if not params.Enabled then
-        local bBox = ModuleC.FOV.Size
-        return Vector3.new(bBox.X or 0, bBox.Y or 0, bBox.Z or 0)
-    end
-    
-    updateCachedTool()
-    local configSet = params.Others
-    if cachedToolClass == 1 then configSet = params.Shotguns
-    elseif cachedToolClass == 2 then configSet = params.Pistols end
-    
-    return Vector3.new(configSet.X or 4, configSet.Y or 6, configSet.Z or 2)
-end
-
-local function CheckOcclusion(bNode)
-    if not bNode then return false end
-    local targetVec = bNode.Position - ActiveCamera.CFrame.Position
-    GlobalRayParams.FilterDescendantsInstances = {LocalClient.Character}
-    local castResult = WorldSpace:Raycast(ActiveCamera.CFrame.Position, targetVec, GlobalRayParams)
-    return castResult == nil or castResult.Instance:IsDescendantOf(bNode.Parent)
-end
-
-local function CheckIntersection(dimensionFunc, targetEntity)
-    if not targetEntity or not targetEntity.Character then return false end
-    local bNode = targetEntity.Character:FindFirstChild("HumanoidRootPart")
-    if not bNode then return false end
-    
-    local dSize = dimensionFunc()
-    local dHalf = dSize * 0.5
-    local boundsMin = bNode.Position - dHalf
-    local boundsMax = bNode.Position + dHalf
-    
-    local pointerRay = ActiveCamera:ScreenPointToRay(PrimaryController.X, PrimaryController.Y)
-    local pOri, pDir = pointerRay.Origin, pointerRay.Direction
-    
-    local tMin = (boundsMin - pOri) / pDir
-    local tMax = (boundsMax - pOri) / pDir
-    
-    local t1X = math.min(tMin.X, tMax.X); local t1Y = math.min(tMin.Y, tMax.Y); local t1Z = math.min(tMin.Z, tMax.Z)
-    local t2X = math.max(tMin.X, tMax.X); local t2Y = math.max(tMin.Y, tMax.Y); local t2Z = math.max(tMin.Z, tMax.Z)
-    
-    local nVal = math.max(t1X, t1Y, t1Z)
-    local fVal = math.min(t2X, t2Y, t2Z)
-    
-    return nVal <= fVal and fVal >= 0
-end
-
-local function GetOptimalCandidate()
-    local optimalBound = ModuleB.Distance
-    local candidateNode = nil
-    local pX, pY = PrimaryController.X, PrimaryController.Y
-    local referenceModel = LocalClient.Character and LocalClient.Character:FindFirstChild("HumanoidRootPart")
-    
-    if not referenceModel then return nil end
-    
-    local activeElements = PlayerService:GetPlayers()
-    for i = 1, #activeElements do
-        local elem = activeElements[i]
-        if elem ~= LocalClient and elem.Character then
-            local proxyNode = elem.Character:FindFirstChild("HumanoidRootPart")
-            if proxyNode then
-                local displacement = (proxyNode.Position - referenceModel.Position).Magnitude
-                if displacement <= optimalBound then
-                    local sCoords = ActiveCamera:WorldToViewportPoint(proxyNode.Position)
-                    if sCoords.Z > 0 and CheckOcclusion(proxyNode) then
-                        local scalarDist = math.sqrt((sCoords.X - pX)^2 + (sCoords.Y - pY)^2)
-                        if scalarDist < optimalBound then
-                            optimalBound = scalarDist
-                            candidateNode = elem
-                        end
-                    end
-                end
+-- ============================================================================
+-- Weapon Modifications (math.random hook)
+-- ============================================================================
+if General['Weapon Modifications'] and General['Weapon Modifications'].Enabled then
+    local oldRandom = math.random
+    math.random = function(l, u)
+        if checkcaller and not checkcaller() and State.WeaponName then
+            local mult = General['Weapon Modifications']["["..State.WeaponName.."]"]
+            if mult and mult.Multiplier and l == -0.05 and u == 0.05 then
+                return oldRandom(l, u) * mult.Multiplier
             end
         end
+        return oldRandom(l, u)
     end
-    return candidateNode
 end
 
-local function ValidateEntity(entity)
-    if not entity or not entity.Character then return false end
-    local conditions = FilterB
-    
-    if conditions["Self Knocked"] then
-        local stEffects = LocalClient.Character and LocalClient.Character:FindFirstChild("BodyEffects")
-        if stEffects and stEffects:FindFirstChild("K.O") and stEffects["K.O"].Value then return false end
-    end
-    
-    if conditions["Crew Check"] and ValidateAffinity(entity) then return false end
-    
-    if conditions["Knock Check"] then
-        local tEffects = entity.Character:FindFirstChild("BodyEffects")
-        if tEffects and tEffects:FindFirstChild("K.O") and tEffects["K.O"].Value then return false end
-    end
-    
-    if conditions["Visible"] then
-        local vNode = entity.Character:FindFirstChild("Head")
-        if not vNode or not CheckOcclusion(vNode) then return false end
-    end
-    
-    return true
+-- ============================================================================
+-- FPS Unlocker & Console
+-- ============================================================================
+if General.FpsUnlocker and setfpscap then
+    setfpscap(999)
+end
+if General.Console then
+    print(" [+] Active")
 end
 
-local function BindZones(targetEntity)
-    ResetVisualNodes()
-    local fovC = GetConfiguredDimensionA()
-    ZoneA = Instance.new("BoxHandleAdornment")
-    ZoneA.Size = fovC
-    ZoneA.Color3 = Color3.fromRGB(255, 0, 0)
-    ZoneA.Transparency = ZoneA_Visible and 1 or 1
-    ZoneA.AlwaysOnTop = true
-    ZoneA.ZIndex = 10
-    ZoneA.Adornee = targetEntity.Character
-    ZoneA.Parent = targetEntity.Character
-
-    local fovT = ModuleD.FOV
-    ZoneTrigger = Instance.new("BoxHandleAdornment")
-    ZoneTrigger.Size = Vector3.new(fovT.X or 0, fovT.Y or 0, fovT.Z or 0)
-    ZoneTrigger.Color3 = Color3.fromRGB(0, 150, 255)
-    ZoneTrigger.Transparency = 1
-    ZoneTrigger.AlwaysOnTop = true
-    ZoneTrigger.ZIndex = 12
-    ZoneTrigger.Adornee = targetEntity.Character
-    ZoneTrigger.Parent = targetEntity.Character
-
-    local fovCam = GetConfiguredDimensionB()
-    ZoneCamera = Instance.new("BoxHandleAdornment")
-    ZoneCamera.Size = fovCam
-    ZoneCamera.Color3 = Color3.fromRGB(0, 255, 0)
-    ZoneCamera.Transparency = 1
-    ZoneCamera.AlwaysOnTop = true
-    ZoneCamera.ZIndex = 11
-    ZoneCamera.Adornee = targetEntity.Character
-    ZoneCamera.Parent = targetEntity.Character
-end
-
-local function InterpretCoordinates(partNode, baseVal)
-    if not partNode then return baseVal end
-    local velocityDelta = partNode.Velocity or Vector3.new(0, 0, 0)
-    local predictionScalars = ModuleB.Prediction
-    return baseVal + Vector3.new(velocityDelta.X * (predictionScalars.X or 0), velocityDelta.Y * (predictionScalars.Y or 0), velocityDelta.Z * (predictionScalars.Z or 0))
-end
-
-local function CalculateProxyIntersection(entityChar)
-    local method = ModuleB['Hit Part']
-    local cPart = nil
-    local pVal = nil
-    
-    if method == "Closest Point" or method == "Closest Part" then
-        local mPos = InputProvider:GetMouseLocation()
-        local minD = math.huge
-        local parts = entityChar:GetChildren()
-        
-        for i = 1, #parts do
-            local p = parts[i]
-            if p:IsA("BasePart") then
-                local sP, vP = ActiveCamera:WorldToViewportPoint(p.Position)
-                if vP then
-                    local d = math.sqrt((sP.X - mPos.X)^2 + (sP.Y - mPos.Y)^2)
-                    if d < minD then
-                        minD = d
-                        cPart = p
-                    end
-                end
-            end
-        end
-        cPart = cPart or entityChar:FindFirstChild("HumanoidRootPart") or entityChar:FindFirstChild("Head")
-        
-        if cPart and method == "Closest Point" then
-            local pType = ModuleB['Closest Point']
-            if pType.Type == "Advanced" then
-                local scale = pType.Scale or 0.6
-                local cf = cPart.CFrame
-                local sX, sY, sZ = (cPart.Size.X * scale * 0.5), (cPart.Size.Y * scale * 0.5), (cPart.Size.Z * scale * 0.5)
-                local mRay = PrimaryController.UnitRay
-                local rel = cf:PointToObjectSpace(mRay.Origin + mRay.Direction * mRay.Direction:Dot(cf.Position - mRay.Origin))
-                pVal = cf * Vector3.new(math.clamp(rel.X, -sX, sX), math.clamp(rel.Y, -sY, sY), math.clamp(rel.Z, -sZ, sZ))
-            else
-                local mRay = PrimaryController.UnitRay
-                local params = RaycastParams.new()
-                params.FilterDescendantsInstances = {cPart}
-                params.FilterType = Enum.RaycastFilterType.Whitelist
-                local rData = WorldSpace:Raycast(mRay.Origin, mRay.Direction * 1000, params)
-                pVal = rData and rData.Position or cPart.Position
-            end
-        elseif cPart then
-            pVal = cPart.Position
-        end
-    else
-        cPart = entityChar:FindFirstChild(method) or entityChar:FindFirstChild("Head")
-        if cPart then pVal = cPart.Position end
-    end
-    
-    if pVal and cPart then
-        pVal = InterpretCoordinates(cPart, pVal)
-    end
-    return pVal, cPart
-end
-
-InputProvider.InputBegan:Connect(executeSafely(function(evt, flag)
-    if flag then return end
-    if evt.KeyCode == Enum.KeyCode[MainConfig.Toggle] then
-        if GlobalInterface then
-            GlobalInterface = nil
-            TrackingInterface = nil
-            ResetVisualNodes()
-        else
-            local targetEntity = GetOptimalCandidate()
-            if targetEntity and ValidateEntity(targetEntity) then
-                GlobalInterface = targetEntity
-                TrackingInterface = targetEntity
-                BindZones(targetEntity)
-            end
-        end
-    end
-    
-    if evt.KeyCode == Enum.KeyCode[ModuleE.Activation['Activation Bind']] then
-        local modeSelect = ModuleE.Activation['Activation Mode']
-        if modeSelect == "Toggle" then ModuleE.Enabled = not ModuleE.Enabled
-        elseif modeSelect == "Hold" then ModuleE.Enabled = true end
-    end
-    
-    if evt.KeyCode == Enum.KeyCode[ModuleD.Activation['Activation Bind']] then
-        local modeSelect = ModuleD.Activation['Activation Mode']
-        if modeSelect == "Toggle" then SignalToggled = not SignalToggled
-        elseif modeSelect == "Hold" then SignalActive = true end
-    end
-end))
-
-InputProvider.InputEnded:Connect(executeSafely(function(evt, flag)
-    if flag then return end
-    if evt.KeyCode == Enum.KeyCode[ModuleE.Activation['Activation Bind']] and ModuleE.Activation['Activation Mode'] == "Hold" then
-        ModuleE.Enabled = false
-    end
-    if evt.KeyCode == Enum.KeyCode[ModuleD.Activation['Activation Bind']] then
-        SignalActive = false
-    end
-end))
-
-OriginalIndexHandler = hookmetamethod(game, "__index", executeSafely(function(self, requestKey)
-    if self == PrimaryController and (requestKey == "Hit" or requestKey == "Target") and GlobalInterface then
-        local vNode = GlobalInterface.Character and GlobalInterface.Character:FindFirstChild("Head")
-        local isVis = FilterA.Visible and CheckOcclusion(vNode) or not FilterA.Visible
-        
-        if isVis and CheckIntersection(GetConfiguredDimensionA, GlobalInterface) then
-            local rCoords, rPart = CalculateProxyIntersection(GlobalInterface.Character)
-            if rCoords and rPart then
-                if requestKey == "Hit" then return CFrame.new(rCoords)
-                else return rPart end
-            end
-        end
-    end
-    return OriginalIndexHandler(self, requestKey)
-end))
-
--- Engine Overrides
-local TargetDataStructure = game:HttpGet("https://raw.githubusercontent.com/Nosssa/NossLock/main/GetRealMousePosition")
-if TargetDataStructure then loadstring(TargetDataStructure)() end
-task.wait()
-
-local NetworkInterceptor
-NetworkInterceptor = hookmetamethod(game, "__namecall", executeSafely(function(self, ...)
-    local payload = {...}
-    local methodType = getnamecallmethod()
-    local acceptedPayloads = {[9196894486] = "UpdateMousePos"}
-    local rType = acceptedPayloads[game.PlaceId] or "UpdateMousePos"
-    
-    if not checkcaller() and methodType == "FireServer" and self.Name == "MainEvent" and payload[1] == rType then
-        return self.FireServer(self, unpack(payload))
-    end
-    return NetworkInterceptor(self, ...)
-end))
-
-local MathEngineGenerator
-MathEngineGenerator = hookfunction(math.random, executeSafely(function(...)
-    local argData = {...}
-    if checkcaller() then return MathEngineGenerator(...) end
-    
-    local mult = 1
-    if MainConfig['Weapon Modifications'] and MainConfig['Weapon Modifications'].Enabled then
-        updateCachedTool()
-        if cachedToolName then
-            local modData = MainConfig['Weapon Modifications']["["..cachedToolName.."]"]
-            if modData then mult = modData.Multiplier or 1 end
-        end
-    end
-    
-    local aCount = #argData
-    if aCount == 0 or (aCount == 2 and argData[1] == -0.05 and argData[2] == 0.05) or (argData[1] == -0.1) or (argData[1] == -0.05) then
-        if mult ~= 1 then return MathEngineGenerator(...) * mult end
-    end
-    return MathEngineGenerator(...)
-end))
-
--- Core Runtime Thread
-ExecutionLoop.RenderStepped:Connect(executeSafely(function()
-    ActiveCamera = WorldSpace.CurrentCamera -- Cache refresh
-    
-    if MainConfig.Mode == 'Target' and GlobalInterface then
-        local sObj = LocalClient.Character
-        local tObj = GlobalInterface.Character
-        local purgeState = false
-        
-        if FilterA["Self Knocked"] then
-            local st = sObj and sObj:FindFirstChild("BodyEffects")
-            if st and st:FindFirstChild("K.O") and st["K.O"].Value then purgeState = true end
-        end
-        if FilterA["Knock Check"] then
-            local tc = tObj and tObj:FindFirstChild("BodyEffects")
-            if tc and tc:FindFirstChild("K.O") and tc["K.O"].Value then purgeState = true end
-        end
-        
-        if purgeState then
-            GlobalInterface = nil
-            TrackingInterface = nil
-            ResetVisualNodes()
-            return
-        end
-    elseif MainConfig.Mode == 'Auto' then
-        local cEntity = GetOptimalCandidate()
-        if cEntity and ValidateEntity(cEntity) then
-            if GlobalInterface ~= cEntity then
-                GlobalInterface = cEntity
-                TrackingInterface = cEntity
-                BindZones(cEntity)
-            end
-        else
-            if GlobalInterface then
-                GlobalInterface = nil
-                TrackingInterface = nil
-                ResetVisualNodes()
-            end
-        end
-    end
-
-    if ZoneA and GlobalInterface and GlobalInterface.Character then
-        ZoneA.Size = GetConfiguredDimensionA()
-        ZoneA.Adornee = GlobalInterface.Character
-    end
-    if ZoneCamera and TrackingInterface and TrackingInterface.Character then
-        ZoneCamera.Size = GetConfiguredDimensionB()
-        ZoneCamera.Adornee = TrackingInterface.Character
-    end
-    if ZoneTrigger and GlobalInterface and GlobalInterface.Character then
-        local vD = ModuleD.FOV
-        ZoneTrigger.Size = Vector3.new(vD.X or 0, vD.Y or 0, vD.Z or 0)
-        ZoneTrigger.Adornee = GlobalInterface.Character
-    end
-
-    if GlobalInterface and ModuleD.Enabled then
-        local vNode = GlobalInterface.Character and GlobalInterface.Character:FindFirstChild("Head")
-        if not FilterA.Visible or CheckOcclusion(vNode) then
-            local mSelector = ModuleD.Activation['Activation Mode']
-            local rDelay = ModuleD['Click Cooldown']
-            local lChar = LocalClient.Character
-            
-            if lChar and not (lChar:FindFirstChild("[Knife]") or lChar:FindFirstChild("Knife")) then
-                local isInBounds = CheckIntersection(function()
-                    local tF = ModuleD.FOV
-                    return Vector3.new(tF.X or 0, tF.Y or 0, tF.Z or 0)
-                end, GlobalInterface)
-                
-                local isActive = (mSelector == "Always") or (mSelector == "Hold" and SignalActive) or (mSelector == "Toggle" and SignalToggled)
-                
-                if isInBounds and isActive then
-                    local tCurrent = tick()
-                    if tCurrent - ActivationTimestamp >= rDelay then
-                        local lTool = lChar:FindFirstChildOfClass("Tool")
-                        if lTool then
-                            lTool:Activate()
-                            ActivationTimestamp = tCurrent
-                        end
-                    end
-                end
-            end
-        end
-    end
-
-    if TrackingInterface and TrackingInterface.Character and ModuleC.Enabled and CheckIntersection(GetConfiguredDimensionB, TrackingInterface) then
-        local cTarget = TrackingInterface
-        local vNode = cTarget.Character:FindFirstChild("Head")
-        local isTargetVisibleLocally = not FilterA.Visible or CheckOcclusion(vNode)
-        
-        if isTargetVisibleLocally and (not FilterA["Crew Check"] or not ValidateAffinity(cTarget)) then
-            local fData = ModuleC['Camera Aimbot Checks']
-            local camMagnitude = (ActiveCamera.CFrame.Position - ActiveCamera.Focus.Position).Magnitude
-            
-            local fCond = fData['First Person'] and (camMagnitude < 1)
-            local tCond = fData['Third Person'] and (camMagnitude >= 1)
-            local rmCond = not fData['Right Click'] or InputProvider:IsMouseButtonPressed(Enum.UserInputType.MouseButton2)
-            
-            if (fCond or tCond) and rmCond then
-                local ptStr = ModuleC['Hit Part']
-                local hPart = ptStr == "Closest Part" and (function()
-                    local mp = InputProvider:GetMouseLocation()
-                    local mD, cP = math.huge, nil
-                    for _, p in ipairs(cTarget.Character:GetChildren()) do
-                        if p:IsA("BasePart") then
-                            local sp, vp = ActiveCamera:WorldToViewportPoint(p.Position)
-                            if vp then
-                                local md = math.sqrt((sp.X - mp.X)^2 + (sp.Y - mp.Y)^2)
-                                if md < mD then mD = md; cP = p end
-                            end
-                        end
-                    end
-                    return cP or cTarget.Character:FindFirstChild("HumanoidRootPart")
-                end)() or cTarget.Character:FindFirstChild(ptStr) or vNode
-                
-                if hPart then
-                    local trP = hPart.Position + Vector3.new(
-                        (hPart.Velocity.X * ModuleC.Prediction.X),
-                        (hPart.Velocity.Y * ModuleC.Prediction.Y),
-                        (hPart.Velocity.Z * ModuleC.Prediction.Z)
-                    )
-                    
-                    local pDir = (trP - ActiveCamera.CFrame.Position).Unit
-                    local cv = ActiveCamera.CFrame.LookVector
-                    local interpVal = math.clamp(cv:Dot(pDir), -1, 1)
-                    local prg = (interpVal + 1) * 0.5
-                    local ease = prg < 0.5 and (4 * prg * prg * prg) or (1 - math.pow(-2 * prg + 2, 3) * 0.5)
-                    
-                    local factor = math.clamp((ModuleC.Snappiness or 0.1) * (0.4 + ease * 1.6), 0, 1)
-                    ActiveCamera.CFrame = CFrame.new(ActiveCamera.CFrame.Position, ActiveCamera.CFrame.Position + cv:Lerp(pDir, factor))
-                end
-            end
-        end
-    end
-
-    ProcessUIUpdate()
-    DispatchEntityRenders()
-end))
-
-if MainConfig and MainConfig.Console then print(" [+] Active") end
-if MainConfig and MainConfig.FpsUnlocker and setfpscap then setfpscap(999) end
+-- ============================================================================
+-- Done
+-- ============================================================================
