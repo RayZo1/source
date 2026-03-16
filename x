@@ -1,3 +1,5 @@
+-- v1x1
+
 if _G.SessionStarted then
     if shared.config.General.Console then
         print(" [+] klient.fun -> Synced")
@@ -525,7 +527,6 @@ end)
 LocalPlayer.CharacterAdded:Connect(function(char)
     char:WaitForChild("HumanoidRootPart")
     updateWeaponCategory()
-    setupBulletRedirection(char)
     char.ChildAdded:Connect(function(child)
         if child:IsA("Tool") then
             task.wait()
@@ -536,7 +537,6 @@ end)
 
 if LocalPlayer.Character then
     updateWeaponCategory()
-    setupBulletRedirection(LocalPlayer.Character)
 end
 
 -- Refresh valid players periodically
