@@ -1,4 +1,4 @@
--- v1x1
+-- 0xc
 if _G.SessionStarted then
     if shared.config.General.Console then
         print(" [+] klient.fun -> Synced")
@@ -413,7 +413,7 @@ end)
 
 UIS.InputBegan:Connect(function(input, gameProcessed)
     if gameProcessed then return end
-
+    if not General or not ESPcfg or not Trigger then return end
     if input.KeyCode == Enum.KeyCode[General.Toggle] then
         if State.Target then
             State.Target = nil
@@ -447,6 +447,7 @@ end)
 
 UIS.InputEnded:Connect(function(input, gameProcessed)
     if gameProcessed then return end
+    if not General or not ESPcfg or not Trigger then return end
     if input.KeyCode == Enum.KeyCode[ESPcfg.Activation['Activation Bind']] and ESPcfg.Activation['Activation Mode'] == "Hold" then
         State.ESPEnabled = false
     end
