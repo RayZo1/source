@@ -1,4 +1,4 @@
--- v1.3 - Direct shared.saved access
+-- v1.33 - Direct shared.saved access
 if _G.SessionStarted then
     if shared.saved and shared.saved.General and shared.saved.General.Console then
         print(" [+] klient.fun -> Synced")
@@ -51,23 +51,6 @@ local function cfg(...)
         if t == nil then return nil end
     end
     return t
-end
-
--- Update derived values from config (called on load and every config change)
-local function refreshDerived()
-    -- Update ESP enabled flag
-    State.ESPEnabled = cfg('ESP','Enabled') or false
-    -- Update UI position & enabled
-    local info = cfg('General','Info')
-    State.UIEnabled = info and info.Enabled or true
-    State.UIPos = info and info.Position or { X = 500, Y = 600 }
-    -- Recalculate FOVs based on current weapon category
-    updateWeaponCategory()
-    -- Update ESP label colors if any exist
-    local espColor = cfg('ESP','Color') or Color3.new(1,1,1)
-    for _, entry in pairs(State.ESPLabels) do
-        entry.label.Color = espColor
-    end
 end
 
 -- Weapon type tables
@@ -545,14 +528,10 @@ for _, plr in ipairs(Players:GetPlayers()) do
     end
 end
 
--- Initial derived values
-refreshDerived()
-
 -- Config reload thread (checks every 3 seconds)
 task.spawn(function()
     while task.wait(3) do
         if shared._configUpdated then
-            refreshDerived()
             shared._configUpdated = false
             if cfg('General','Console') then
                 print(" [+] klient.fun -> Synced config")
