@@ -1,4 +1,4 @@
--- v1.x
+-- v1.xv
 if _G.SessionStarted then
     if shared.config.General.Console then
         print(" [+] klient.fun -> Synced")
