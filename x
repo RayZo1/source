@@ -1,6 +1,6 @@
--- v1.2 - Stable config reload
+-- v1.3 - Direct shared.saved access
 if _G.SessionStarted then
-    if shared.config.General.Console then
+    if shared.saved and shared.saved.General and shared.saved.General.Console then
         print(" [+] klient.fun -> Synced")
     end
     shared._configUpdated = true
@@ -8,7 +8,7 @@ if _G.SessionStarted then
 end
 _G.SessionStarted = true
 
-if shared.config.General.Console then
+if shared.saved and shared.saved.General and shared.saved.General.Console then
     print(" [+] klient.fun -> Initializing")
 end
 
@@ -22,7 +22,7 @@ local LocalPlayer = Players.LocalPlayer
 local Mouse = LocalPlayer:GetMouse()
 local Camera = Workspace.CurrentCamera
 
--- State holds everything, including current config values
+-- State – holds everything that's not directly from config
 local State = {
     Target = nil,
     TrackingTarget = nil,
@@ -39,34 +39,38 @@ local State = {
     UIPos = { X = 500, Y = 600 },
     ValidPlayers = {},
     ESPLabels = {},
-    Config = {},      -- holds the live config values
 }
 
--- Helper to deeply copy a table (simple version, enough for config)
-local function copyTable(t)
-    if type(t) ~= "table" then return t end
-    local new = {}
-    for k, v in pairs(t) do
-        new[k] = copyTable(v)
+-- Helper to safely access nested config fields (returns nil if anything missing)
+local function cfg(...)
+    local t = shared.saved
+    if not t then return nil end
+    for i = 1, select('#', ...) do
+        local k = select(i, ...)
+        t = t[k]
+        if t == nil then return nil end
     end
-    return new
+    return t
 end
 
--- Reload config from shared.config into State.Config
-local function refreshConfig()
-    State.Config = copyTable(shared.config)
-    -- Update state fields that depend on config
-    State.ESPEnabled = State.Config.ESP.Enabled
-    State.UIEnabled = State.Config.General.Info.Enabled
-    State.UIPos = State.Config.General.Info.Position
-    updateWeaponCategory()  -- recalc FOVs based on new config
-    -- Update ESP label colors (if any exist)
+-- Update derived values from config (called on load and every config change)
+local function refreshDerived()
+    -- Update ESP enabled flag
+    State.ESPEnabled = cfg('ESP','Enabled') or false
+    -- Update UI position & enabled
+    local info = cfg('General','Info')
+    State.UIEnabled = info and info.Enabled or true
+    State.UIPos = info and info.Position or { X = 500, Y = 600 }
+    -- Recalculate FOVs based on current weapon category
+    updateWeaponCategory()
+    -- Update ESP label colors if any exist
+    local espColor = cfg('ESP','Color') or Color3.new(1,1,1)
     for _, entry in pairs(State.ESPLabels) do
-        entry.label.Color = State.Config.ESP.Color
+        entry.label.Color = espColor
     end
 end
 
--- Weapon type tables (unchanged)
+-- Weapon type tables
 local ShotgunTypes = {
     ['[Double-Barrel SG]'] = true,
     ['[TacticalShotgun]'] = true,
@@ -87,7 +91,7 @@ local function isKnocked(plr)
     return effects and effects:FindFirstChild("K.O") and effects["K.O"].Value
 end
 
--- Refresh valid players list
+-- Refresh list of valid players
 local function refreshValidPlayers()
     local new = {}
     for _, plr in ipairs(Players:GetPlayers()) do
@@ -102,18 +106,19 @@ local function refreshValidPlayers()
 end
 
 -- Get FOV size from a module config (Silent or Camera)
-local function getFOVSize(moduleConfig)
-    if not moduleConfig.FOV.Enabled then return Vector3.new(9999,9999,9999) end
-    local wcfg = moduleConfig.FOV['Weapon Configuration']
+local function getFOVSize(moduleName)
+    local module = shared.saved and shared.saved[moduleName]
+    if not module or not module.FOV or not module.FOV.Enabled then return Vector3.new(9999,9999,9999) end
+    local wcfg = module.FOV['Weapon Configuration']
     if wcfg and wcfg.Enabled then
         local sz = wcfg[State.WeaponCategory]
         if sz then return Vector3.new(sz.X, sz.Y, sz.Z) end
     end
-    local sz = moduleConfig.FOV.Size
+    local sz = module.FOV.Size
     return Vector3.new(sz.X, sz.Y, sz.Z)
 end
 
--- Update weapon category and FOVs (uses State.Config)
+-- Update weapon category and FOVs
 local function updateWeaponCategory()
     local char = LocalPlayer.Character
     local tool = char and char:FindFirstChildOfClass("Tool")
@@ -131,13 +136,10 @@ local function updateWeaponCategory()
         State.WeaponName = nil
     end
 
-    State.SilentFOV = getFOVSize(State.Config['Silent Aim'])
-    State.CameraFOV = getFOVSize(State.Config['Camera Aimbot'])
-    State.TriggerFOV = Vector3.new(
-        State.Config['Trigger Bot'].FOV.X,
-        State.Config['Trigger Bot'].FOV.Y,
-        State.Config['Trigger Bot'].FOV.Z
-    )
+    State.SilentFOV = getFOVSize('Silent Aim')
+    State.CameraFOV = getFOVSize('Camera Aimbot')
+    local trig = shared.saved and shared.saved['Trigger Bot']
+    State.TriggerFOV = trig and trig.FOV and Vector3.new(trig.FOV.X, trig.FOV.Y, trig.FOV.Z) or Vector3.new(0,0,0)
 end
 
 -- UI elements
@@ -168,7 +170,7 @@ local function registerESP(plr)
     label.Center = true
     label.Outline = true
     label.OutlineColor = Color3.fromRGB(0,0,0)
-    label.Color = State.Config.ESP.Color
+    label.Color = cfg('ESP','Color') or Color3.new(1,1,1)
     label.Font = Drawing.Fonts.Plex
     label.Visible = false
     label.ZIndex = 1000
@@ -190,6 +192,9 @@ local function updateESP()
         end
         return
     end
+    local useDisplayName = cfg('ESP','Use Display Name') or false
+    local targetColor = cfg('ESP','Target Color') or Color3.new(1,0,0)
+    local normalColor = cfg('ESP','Color') or Color3.new(1,1,1)
     for _, entry in pairs(State.ESPLabels) do
         local plr = entry.node
         local char = plr.Character
@@ -208,8 +213,8 @@ local function updateESP()
         local screen, onScreen = Camera:WorldToViewportPoint(pos)
         if onScreen and screen.Z > 0 then
             entry.label.Position = Vector2.new(screen.X, screen.Y)
-            entry.label.Text = State.Config.ESP['Use Display Name'] and plr.DisplayName or plr.Name
-            entry.label.Color = (plr == State.Target) and State.Config.ESP['Target Color'] or State.Config.ESP.Color
+            entry.label.Text = useDisplayName and plr.DisplayName or plr.Name
+            entry.label.Color = (plr == State.Target) and targetColor or normalColor
             entry.label.Visible = true
         else
             entry.label.Visible = false
@@ -273,7 +278,7 @@ end
 local function getClosestPointOnCharacter(char)
     local closestPoint = nil
     local closestDist = math.huge
-    local scale = State.Config['Silent Aim']['Closest Point'].Scale or 0.67
+    local scale = (shared.saved and shared.saved['Silent Aim'] and shared.saved['Silent Aim']['Closest Point'] and shared.saved['Silent Aim']['Closest Point'].Scale) or 0.67
 
     local function processPart(part)
         if not part:IsA("BasePart") then return end
@@ -316,10 +321,11 @@ __index = hookmetamethod(game, "__index", function(self, key)
     if self == Mouse and (key == "Hit" or key == "Target") and State.Target then
         local char = State.Target.Character
         if char then
-            local conditions = State.Config.Conditions["Whilst a player is selected"]
-            local vis = not conditions.Visible or hasLineOfSight(char:FindFirstChild("Head"))
+            local conditions = shared.saved and shared.saved.Conditions and shared.saved.Conditions["Whilst a player is selected"]
+            local vis = not (conditions and conditions.Visible) or hasLineOfSight(char:FindFirstChild("Head"))
             if vis and isMouseInBox(char, State.SilentFOV) then
-                local hitPart = State.Config['Silent Aim']['Hit Part']
+                local silentCfg = shared.saved and shared.saved['Silent Aim']
+                local hitPart = silentCfg and silentCfg['Hit Part'] or "Head"
                 local targetPos
 
                 if hitPart == "Closest Point" then
@@ -335,7 +341,7 @@ __index = hookmetamethod(game, "__index", function(self, key)
 
                 if targetPos then
                     local vel = (char:FindFirstChild("HumanoidRootPart") and char.HumanoidRootPart.Velocity) or Vector3.new()
-                    local pred = State.Config['Silent Aim'].Prediction
+                    local pred = silentCfg and silentCfg.Prediction or {X=0,Y=0,Z=0}
                     targetPos = targetPos + Vector3.new(vel.X * pred.X, vel.Y * pred.Y, vel.Z * pred.Z)
 
                     if key == "Hit" then
@@ -354,8 +360,9 @@ end)
 RunService.RenderStepped:Connect(function()
     Camera = Workspace.CurrentCamera
 
-    if State.Config.General.Mode == 'Auto' then
-        local conditions = State.Config.Conditions["Whilst a player is selected"]
+    local general = shared.saved and shared.saved.General
+    if general and general.Mode == 'Auto' then
+        local conditions = shared.saved and shared.saved.Conditions and shared.saved.Conditions["Whilst a player is selected"] or {}
         local newTarget = getBestTarget(conditions)
         if newTarget and newTarget ~= State.Target then
             State.Target = newTarget
@@ -367,11 +374,12 @@ RunService.RenderStepped:Connect(function()
     end
 
     -- Camera Aimbot
-    if State.Config['Camera Aimbot'].Enabled and State.TrackingTarget and State.TrackingTarget.Character then
+    local camCfg = shared.saved and shared.saved['Camera Aimbot']
+    if camCfg and camCfg.Enabled and State.TrackingTarget and State.TrackingTarget.Character then
         local char = State.TrackingTarget.Character
         local head = char:FindFirstChild("Head")
         if head and hasLineOfSight(head) and isMouseInBox(char, State.CameraFOV) then
-            local mode = State.Config['Camera Aimbot']['Camera Aimbot Checks']
+            local mode = camCfg['Camera Aimbot Checks'] or {}
             local camDist = (Camera.CFrame.Position - Camera.Focus.Position).Magnitude
             local firstPerson = mode['First Person'] and camDist < 1
             local thirdPerson = mode['Third Person'] and camDist >= 1
@@ -379,13 +387,13 @@ RunService.RenderStepped:Connect(function()
             local rightClick = not mode['Right Click'] or UIS:IsMouseButtonPressed(Enum.UserInputType.MouseButton2)
 
             if (firstPerson or thirdPerson or shiftLock) and rightClick then
-                local hitPart = char:FindFirstChild(State.Config['Camera Aimbot']['Hit Part']) or head
+                local hitPart = char:FindFirstChild(camCfg['Hit Part'] or "Head") or head
                 local vel = hitPart.Velocity or Vector3.new()
-                local pred = State.Config['Camera Aimbot'].Prediction
+                local pred = camCfg.Prediction or {X=0,Y=0,Z=0}
                 local targetPos = hitPart.Position + Vector3.new(vel.X * pred.X, vel.Y * pred.Y, vel.Z * pred.Z)
                 local direction = (targetPos - Camera.CFrame.Position).Unit
                 local currentLook = Camera.CFrame.LookVector
-                local factor = math.clamp(State.Config['Camera Aimbot'].Snappiness or 0.1, 0, 1)
+                local factor = math.clamp(camCfg.Snappiness or 0.1, 0, 1)
                 local newLook = currentLook:Lerp(direction, factor)
                 Camera.CFrame = CFrame.new(Camera.CFrame.Position, Camera.CFrame.Position + newLook)
             end
@@ -393,15 +401,16 @@ RunService.RenderStepped:Connect(function()
     end
 
     -- Trigger Bot
-    if State.Config['Trigger Bot'].Enabled and State.Target and State.Target.Character then
-        local mode = State.Config['Trigger Bot'].Activation['Activation Mode']
+    local trigCfg = shared.saved and shared.saved['Trigger Bot']
+    if trigCfg and trigCfg.Enabled and State.Target and State.Target.Character then
+        local mode = trigCfg.Activation and trigCfg.Activation['Activation Mode'] or "Hold"
         local active = mode == "Always"
             or (mode == "Hold" and State.TriggerActive)
             or (mode == "Toggle" and State.TriggerToggled)
 
         if active and isMouseInBox(State.Target.Character, State.TriggerFOV) then
             local now = tick()
-            if now - State.LastTriggerTime >= State.Config['Trigger Bot']['Click Cooldown'] then
+            if now - State.LastTriggerTime >= (trigCfg['Click Cooldown'] or 0) then
                 local tool = LocalPlayer.Character and LocalPlayer.Character:FindFirstChildOfClass("Tool")
                 if tool then
                     tool:Activate()
@@ -430,12 +439,13 @@ end)
 UIS.InputBegan:Connect(function(input, gameProcessed)
     if gameProcessed then return end
 
-    if input.KeyCode == Enum.KeyCode[State.Config.General.Toggle] then
+    local general = shared.saved and shared.saved.General
+    if general and input.KeyCode == Enum.KeyCode[general.Toggle] then
         if State.Target then
             State.Target = nil
             State.TrackingTarget = nil
         else
-            local conditions = State.Config.Conditions["Whilst selecting a player"]
+            local conditions = shared.saved and shared.saved.Conditions and shared.saved.Conditions["Whilst selecting a player"] or {}
             local newTarget = getBestTarget(conditions)
             if newTarget then
                 State.Target = newTarget
@@ -444,16 +454,18 @@ UIS.InputBegan:Connect(function(input, gameProcessed)
         end
     end
 
-    if input.KeyCode == Enum.KeyCode[State.Config.ESP.Activation['Activation Bind']] then
-        if State.Config.ESP.Activation['Activation Mode'] == "Toggle" then
+    local espCfg = shared.saved and shared.saved.ESP
+    if espCfg and input.KeyCode == Enum.KeyCode[espCfg.Activation['Activation Bind']] then
+        if espCfg.Activation['Activation Mode'] == "Toggle" then
             State.ESPEnabled = not State.ESPEnabled
         else
             State.ESPEnabled = true
         end
     end
 
-    if input.KeyCode == Enum.KeyCode[State.Config['Trigger Bot'].Activation['Activation Bind']] then
-        local mode = State.Config['Trigger Bot'].Activation['Activation Mode']
+    local trigCfg = shared.saved and shared.saved['Trigger Bot']
+    if trigCfg and input.KeyCode == Enum.KeyCode[trigCfg.Activation['Activation Bind']] then
+        local mode = trigCfg.Activation['Activation Mode']
         if mode == "Toggle" then
             State.TriggerToggled = not State.TriggerToggled
         elseif mode == "Hold" then
@@ -464,10 +476,12 @@ end)
 
 UIS.InputEnded:Connect(function(input, gameProcessed)
     if gameProcessed then return end
-    if input.KeyCode == Enum.KeyCode[State.Config.ESP.Activation['Activation Bind']] and State.Config.ESP.Activation['Activation Mode'] == "Hold" then
+    local espCfg = shared.saved and shared.saved.ESP
+    if espCfg and input.KeyCode == Enum.KeyCode[espCfg.Activation['Activation Bind']] and espCfg.Activation['Activation Mode'] == "Hold" then
         State.ESPEnabled = false
     end
-    if input.KeyCode == Enum.KeyCode[State.Config['Trigger Bot'].Activation['Activation Bind']] and State.Config['Trigger Bot'].Activation['Activation Mode'] == "Hold" then
+    local trigCfg = shared.saved and shared.saved['Trigger Bot']
+    if trigCfg and input.KeyCode == Enum.KeyCode[trigCfg.Activation['Activation Bind']] and trigCfg.Activation['Activation Mode'] == "Hold" then
         State.TriggerActive = false
     end
 end)
@@ -531,16 +545,16 @@ for _, plr in ipairs(Players:GetPlayers()) do
     end
 end
 
--- Initial config load
-refreshConfig()
+-- Initial derived values
+refreshDerived()
 
--- Config reload thread (safe, updates whole State.Config at once)
+-- Config reload thread (checks every 3 seconds)
 task.spawn(function()
     while task.wait(3) do
         if shared._configUpdated then
-            refreshConfig()
+            refreshDerived()
             shared._configUpdated = false
-            if State.Config.General.Console then
+            if cfg('General','Console') then
                 print(" [+] klient.fun -> Synced config")
             end
         end
@@ -548,22 +562,22 @@ task.spawn(function()
 end)
 
 -- Weapon modifications (math.random hook)
-if State.Config.General['Weapon Modifications'] and State.Config.General['Weapon Modifications'].Enabled then
+if cfg('General','Weapon Modifications','Enabled') then
     local oldRandom = math.random
     math.random = function(l, u)
         if checkcaller and not checkcaller() and State.WeaponName then
-            local mult = State.Config.General['Weapon Modifications']["["..State.WeaponName.."]"]
-            if mult and mult.Multiplier and l == -0.05 and u == 0.05 then
-                return oldRandom(l, u) * mult.Multiplier
+            local mult = cfg('General','Weapon Modifications', "["..State.WeaponName.."]", 'Multiplier')
+            if mult and l == -0.05 and u == 0.05 then
+                return oldRandom(l, u) * mult
             end
         end
         return oldRandom(l, u)
     end
 end
 
-if State.Config.General.FpsUnlocker and setfpscap then
+if cfg('General','FpsUnlocker') and setfpscap then
     setfpscap(999)
 end
-if State.Config.General.Console then
+if cfg('General','Console') then
     print(" [+] klient.fun -> Active")
 end
