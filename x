@@ -317,6 +317,7 @@ end
 -- yes sorry silent is hooked
 local __index
 __index = hookmetamethod(game, "__index", function(self, key)
+if not Silent then return __index(self, key) end
     if self == Mouse and (key == "Hit" or key == "Target") and State.Target then
         local char = State.Target.Character
         if char then
@@ -362,6 +363,7 @@ end)
 
 -- main
 RunService.RenderStepped:Connect(function()
+if not General then return end
     -- Update camera reference
     Camera = Workspace.CurrentCamera
 
