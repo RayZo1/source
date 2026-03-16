@@ -1,6 +1,6 @@
 if _G.SessionStarted then
     if shared.config.General.Console then
-        print(" [+] klient.fun -> Synchronized")
+        print(" [+] klient.fun -> Synced")
     end
     shared._configUpdated = true
     return
@@ -11,7 +11,7 @@ if shared.config.General.Console then
     print(" [+] klient.fun -> Initializing")
 end
 
--- service and global
+-- Services & globals
 local Players = game:GetService("Players")
 local UIS = game:GetService("UserInputService")
 local Workspace = game:GetService("Workspace")
@@ -22,30 +22,6 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local LocalPlayer = Players.LocalPlayer
 local Mouse = LocalPlayer:GetMouse()
 local Camera = Workspace.CurrentCamera
-
--- cfg calls
-local Settings = shared.config
-local General = Settings.General
-local Silent = Settings['Silent Aim']
-local CameraAim = Settings['Camera Aimbot']
-local Trigger = Settings['Trigger Bot']
-local ESPcfg = Settings['ESP']
-local Conditions = Settings.Conditions
-local FilterSelected = Conditions["Whilst a player is selected"]
-local FilterSelecting = Conditions["Whilst selecting a player"]
-local Redir = Silent.Redirection   -- new redirection config
-
-local ShotgunTypes = {
-    ['[Double-Barrel SG]'] = true,
-    ['[TacticalShotgun]'] = true,
-    ['[Shotgun]'] = true,
-    ['[DrumShotgun]'] = true
-}
-local PistolTypes = {
-    ['[Revolver]'] = true,
-    ['[Silencer]'] = true,
-    ['[Glock]'] = true
-}
 
 local State = {
     Target = nil,
@@ -58,15 +34,52 @@ local State = {
     TriggerActive = false,
     TriggerToggled = false,
     LastTriggerTime = 0,
-    ESPEnabled = ESPcfg.Enabled,
-    UIEnabled = General.Info.Enabled,
-    UIPos = General.Info.Position,
-    ValidPlayers = {},              -- list of players with alive characters
-    ESPLabels = {},                 -- userId -> {node=player, label=Drawing}
-    OverwrittenTools = {},          -- track which tools we've already patched
+    ESPEnabled = false,  -- will be set from config
+    UIEnabled = true,
+    UIPos = { X = 500, Y = 600 },
+    ValidPlayers = {},
+    ESPLabels = {},
+    OverwrittenTools = {},
 }
 
--- knock check ig
+local Settings = shared.config  -- start with the initial config
+local General, Silent, CameraAim, Trigger, ESPcfg, Conditions, FilterSelected, FilterSelecting, Redir
+
+local function refreshSettings()
+    Settings = shared.config  -- grab latest
+    General = Settings.General
+    Silent = Settings['Silent Aim']
+    CameraAim = Settings['Camera Aimbot']
+    Trigger = Settings['Trigger Bot']
+    ESPcfg = Settings['ESP']
+    Conditions = Settings.Conditions
+    FilterSelected = Conditions["Whilst a player is selected"]
+    FilterSelecting = Conditions["Whilst selecting a player"]
+    Redir = Silent.Redirection
+
+    -- update
+    State.ESPEnabled = ESPcfg.Enabled
+    State.UIEnabled = General.Info.Enabled
+    State.UIPos = General.Info.Position
+
+    -- fov update
+    updateWeaponCategory()
+end
+
+-- weapon table
+local ShotgunTypes = {
+    ['[Double-Barrel SG]'] = true,
+    ['[TacticalShotgun]'] = true,
+    ['[Shotgun]'] = true,
+    ['[DrumShotgun]'] = true
+}
+local PistolTypes = {
+    ['[Revolver]'] = true,
+    ['[Silencer]'] = true,
+    ['[Glock]'] = true
+}
+
+-- knock check
 local function isKnocked(plr)
     local char = plr.Character
     if not char then return false end
@@ -74,7 +87,7 @@ local function isKnocked(plr)
     return effects and effects:FindFirstChild("K.O") and effects["K.O"].Value
 end
 
--- refresh plrs
+-- Refresh list
 local function refreshValidPlayers()
     local new = {}
     for _, plr in ipairs(Players:GetPlayers()) do
@@ -88,7 +101,19 @@ local function refreshValidPlayers()
     State.ValidPlayers = new
 end
 
--- weapon n fov
+-- fov size module
+local function getFOVSize(module)
+    if not module.FOV.Enabled then return Vector3.new(9999,9999,9999) end
+    local wcfg = module.FOV['Weapon Configuration']
+    if wcfg and wcfg.Enabled then
+        local sz = wcfg[State.WeaponCategory]
+        if sz then return Vector3.new(sz.X, sz.Y, sz.Z) end
+    end
+    local sz = module.FOV.Size
+    return Vector3.new(sz.X, sz.Y, sz.Z)
+end
+
+-- weapon category and fov
 local function updateWeaponCategory()
     local char = LocalPlayer.Character
     local tool = char and char:FindFirstChildOfClass("Tool")
@@ -106,24 +131,13 @@ local function updateWeaponCategory()
         State.WeaponName = nil
     end
 
-    -- Helper to get FOV size from a module
-    local function getFOVSize(module)
-        if not module.FOV.Enabled then return Vector3.new(9999,9999,9999) end
-        local wcfg = module.FOV['Weapon Configuration']
-        if wcfg and wcfg.Enabled then
-            local sz = wcfg[State.WeaponCategory]
-            if sz then return Vector3.new(sz.X, sz.Y, sz.Z) end
-        end
-        local sz = module.FOV.Size
-        return Vector3.new(sz.X, sz.Y, sz.Z)
-    end
-
+    -- Use current config to compute FOVs
     State.SilentFOV = getFOVSize(Silent)
     State.CameraFOV = getFOVSize(CameraAim)
     State.TriggerFOV = Vector3.new(Trigger.FOV.X, Trigger.FOV.Y, Trigger.FOV.Z)
 end
 
--- omg wallhacks
+-- cheats
 local ScreenGui = Instance.new("ScreenGui")
 ScreenGui.Name = "UserLayer_Runtime"
 ScreenGui.ResetOnSpawn = false
@@ -133,7 +147,6 @@ ScreenGui.Parent = CoreGui
 local OutputLabel = Instance.new("TextLabel")
 OutputLabel.Name = "OutputDisplay_Runtime"
 OutputLabel.Size = UDim2.new(0, 200, 0, 20)
-OutputLabel.Position = UDim2.new(0, State.UIPos.X, 0, State.UIPos.Y)
 OutputLabel.BackgroundTransparency = 1
 OutputLabel.Text = ""
 OutputLabel.TextColor3 = Color3.new(1,1,1)
@@ -143,7 +156,6 @@ OutputLabel.TextSize = 14
 OutputLabel.TextXAlignment = Enum.TextXAlignment.Left
 OutputLabel.RichText = true
 OutputLabel.Parent = ScreenGui
-ScreenGui.Enabled = State.UIEnabled
 
 local function registerESP(plr)
     if State.ESPLabels[plr.UserId] then return end
@@ -201,7 +213,7 @@ local function updateESP()
     end
 end
 
--- sum help boii
+-- yea idk
 local RayParams = RaycastParams.new()
 RayParams.FilterType = Enum.RaycastFilterType.Blacklist
 RayParams.IgnoreWater = true
@@ -254,7 +266,54 @@ local function getBestTarget(conditions)
     return best
 end
 
--- yes the silent aim is sadly hooked
+-- yeaaa we got closest point
+local function getClosestPointOnCharacter(char, mouseRay)
+    -- Returns a CFrame position (the closest point on the character to the mouse ray)
+    local closestPoint = nil
+    local closestDist = math.huge
+
+    local function processPart(part)
+        if not part:IsA("BasePart") then return end
+        -- Get the part's bounding box in world space
+        local cf = part.CFrame
+        local size = part.Size
+        local scale = Silent['Closest Point'].Scale or 0.67
+        local half = size * scale * 0.5
+
+        -- 8 corners of the scaled box
+        local corners = {
+            cf * Vector3.new(-half.X, -half.Y, -half.Z),
+            cf * Vector3.new( half.X, -half.Y, -half.Z),
+            cf * Vector3.new(-half.X,  half.Y, -half.Z),
+            cf * Vector3.new( half.X,  half.Y, -half.Z),
+            cf * Vector3.new(-half.X, -half.Y,  half.Z),
+            cf * Vector3.new( half.X, -half.Y,  half.Z),
+            cf * Vector3.new(-half.X,  half.Y,  half.Z),
+            cf * Vector3.new( half.X,  half.Y,  half.Z),
+        }
+
+        for _, corner in ipairs(corners) do
+            -- Project corner onto screen
+            local screenPos, onScreen = Camera:WorldToViewportPoint(corner)
+            if onScreen then
+                local dist = (Vector2.new(screenPos.X, screenPos.Y) - Vector2.new(Mouse.X, Mouse.Y)).Magnitude
+                if dist < closestDist then
+                    closestDist = dist
+                    closestPoint = corner
+                end
+            end
+        end
+    end
+
+    -- Iterate over all parts in character
+    for _, obj in ipairs(char:GetDescendants()) do
+        processPart(obj)
+    end
+
+    return closestPoint
+end
+
+-- yes sorry silent is hooked
 local __index
 __index = hookmetamethod(game, "__index", function(self, key)
     if self == Mouse and (key == "Hit" or key == "Target") and State.Target then
@@ -264,26 +323,34 @@ __index = hookmetamethod(game, "__index", function(self, key)
             if vis and isMouseInBox(char, State.SilentFOV) then
                 local hitPart = Silent['Hit Part']
                 local targetPos
+
                 if hitPart == "Closest Point" then
-                    local head = char:FindFirstChild("Head")
-                    if head then
-                        local vel = head.Velocity or Vector3.new()
-                        local pred = Silent.Prediction
-                        targetPos = head.Position + Vector3.new(vel.X*pred.X, vel.Y*pred.Y, vel.Z*pred.Z)
+                    -- Use the advanced closest point calculation
+                    targetPos = getClosestPointOnCharacter(char, Mouse.UnitRay)
+                    if not targetPos then
+                        -- Fallback to head
+                        local head = char:FindFirstChild("Head")
+                        if head then
+                            targetPos = head.Position
+                        end
                     end
                 else
                     local part = char:FindFirstChild(hitPart) or char:FindFirstChild("Head")
                     if part then
-                        local vel = part.Velocity or Vector3.new()
-                        local pred = Silent.Prediction
-                        targetPos = part.Position + Vector3.new(vel.X*pred.X, vel.Y*pred.Y, vel.Z*pred.Z)
+                        targetPos = part.Position
                     end
                 end
+
+                -- Apply prediction
                 if targetPos then
+                    local vel = (char:FindFirstChild("HumanoidRootPart") and char.HumanoidRootPart.Velocity) or Vector3.new()
+                    local pred = Silent.Prediction
+                    targetPos = targetPos + Vector3.new(vel.X * pred.X, vel.Y * pred.Y, vel.Z * pred.Z)
+
                     if key == "Hit" then
                         return CFrame.new(targetPos)
                     else
-                        return char:FindFirstChild("Head")  -- fallback
+                        return char:FindFirstChild("Head")  -- fallback for Target
                     end
                 end
             end
@@ -292,7 +359,7 @@ __index = hookmetamethod(game, "__index", function(self, key)
     return __index(self, key)
 end)
 
--- where shit goes down
+-- main
 RunService.RenderStepped:Connect(function()
     -- Update camera reference
     Camera = Workspace.CurrentCamera
@@ -370,7 +437,7 @@ RunService.RenderStepped:Connect(function()
     updateESP()
 end)
 
--- input handling
+-- Input Handling
 UIS.InputBegan:Connect(function(input, gameProcessed)
     if gameProcessed then return end
 
@@ -439,7 +506,7 @@ local function setupPlayer(plr)
     end)
 end
 
--- plrs
+-- Initial players
 for _, plr in ipairs(Players:GetPlayers()) do
     setupPlayer(plr)
 end
@@ -454,10 +521,11 @@ Players.PlayerRemoving:Connect(function(plr)
     end
 end)
 
--- local plr changes
+-- Local player character changes
 LocalPlayer.CharacterAdded:Connect(function(char)
     char:WaitForChild("HumanoidRootPart")
     updateWeaponCategory()
+    setupBulletRedirection(char)
     char.ChildAdded:Connect(function(child)
         if child:IsA("Tool") then
             task.wait()
@@ -468,9 +536,10 @@ end)
 
 if LocalPlayer.Character then
     updateWeaponCategory()
+    setupBulletRedirection(LocalPlayer.Character)
 end
 
--- refresh the community
+-- Refresh valid players periodically
 refreshValidPlayers()
 Players.PlayerAdded:Connect(refreshValidPlayers)
 Players.PlayerRemoving:Connect(refreshValidPlayers)
@@ -479,8 +548,23 @@ for _, plr in ipairs(Players:GetPlayers()) do
         plr.Character.Humanoid.Died:Connect(refreshValidPlayers)
     end
 end
+-- cfg reload thing
+task.spawn(function()
+    while task.wait(3) do
+        -- Check if config was updated (shared._configUpdated flag)
+        if shared._configUpdated then
+            refreshSettings()
+            shared._configUpdated = false
+            if General.Console then
+                print(" [+] klient.fun -> Synced config")
+            end
+        end
+    end
+end)
 
--- mods
+-- Init thing
+refreshSettings()
+-- Weapon Mods
 if General['Weapon Modifications'] and General['Weapon Modifications'].Enabled then
     local oldRandom = math.random
     math.random = function(l, u)
@@ -494,11 +578,10 @@ if General['Weapon Modifications'] and General['Weapon Modifications'].Enabled t
     end
 end
 
--- yes bro
+-- fps and console thing
 if General.FpsUnlocker and setfpscap then
     setfpscap(999)
 end
 if General.Console then
     print(" [+] klient.fun -> Active")
 end
--- Jew
