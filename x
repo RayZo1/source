@@ -1,4 +1,4 @@
--- v1
+-- v1.1
 if _G.SessionStarted then
     if shared.config.General.Console then
         print(" [+] klient.fun -> Synced")
@@ -513,7 +513,7 @@ for _, plr in ipairs(Players:GetPlayers()) do
         plr.Character.Humanoid.Died:Connect(refreshValidPlayers)
     end
 end
-
+refreshSettings()
 task.spawn(function()
     while task.wait(3) do
         if shared._configUpdated then
@@ -525,8 +525,6 @@ task.spawn(function()
         end
     end
 end)
-
-refreshSettings()
 
 if General['Weapon Modifications'] and General['Weapon Modifications'].Enabled then
     local oldRandom = math.random
