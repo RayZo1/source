@@ -1,5 +1,4 @@
 -- v1x1
-
 if _G.SessionStarted then
     if shared.config.General.Console then
         print(" [+] klient.fun -> Synced")
@@ -36,19 +35,18 @@ local State = {
     TriggerActive = false,
     TriggerToggled = false,
     LastTriggerTime = 0,
-    ESPEnabled = false,  -- will be set from config
+    ESPEnabled = false,
     UIEnabled = true,
     UIPos = { X = 500, Y = 600 },
     ValidPlayers = {},
     ESPLabels = {},
-    OverwrittenTools = {},
 }
 
-local Settings = shared.config  -- start with the initial config
+local Settings = shared.config
 local General, Silent, CameraAim, Trigger, ESPcfg, Conditions, FilterSelected, FilterSelecting
 
 local function refreshSettings()
-    Settings = shared.config  -- grab latest
+    Settings = shared.config
     General = Settings.General
     Silent = Settings['Silent Aim']
     CameraAim = Settings['Camera Aimbot']
@@ -58,16 +56,13 @@ local function refreshSettings()
     FilterSelected = Conditions["Whilst a player is selected"]
     FilterSelecting = Conditions["Whilst selecting a player"]
 
-    -- update
     State.ESPEnabled = ESPcfg.Enabled
     State.UIEnabled = General.Info.Enabled
     State.UIPos = General.Info.Position
 
-    -- fov update
     updateWeaponCategory()
 end
 
--- weapon table
 local ShotgunTypes = {
     ['[Double-Barrel SG]'] = true,
     ['[TacticalShotgun]'] = true,
@@ -80,7 +75,6 @@ local PistolTypes = {
     ['[Glock]'] = true
 }
 
--- knock check
 local function isKnocked(plr)
     local char = plr.Character
     if not char then return false end
@@ -88,7 +82,6 @@ local function isKnocked(plr)
     return effects and effects:FindFirstChild("K.O") and effects["K.O"].Value
 end
 
--- Refresh list
 local function refreshValidPlayers()
     local new = {}
     for _, plr in ipairs(Players:GetPlayers()) do
@@ -102,7 +95,6 @@ local function refreshValidPlayers()
     State.ValidPlayers = new
 end
 
--- fov size module
 local function getFOVSize(module)
     if not module.FOV.Enabled then return Vector3.new(9999,9999,9999) end
     local wcfg = module.FOV['Weapon Configuration']
@@ -114,7 +106,6 @@ local function getFOVSize(module)
     return Vector3.new(sz.X, sz.Y, sz.Z)
 end
 
--- weapon category and fov
 local function updateWeaponCategory()
     local char = LocalPlayer.Character
     local tool = char and char:FindFirstChildOfClass("Tool")
@@ -132,13 +123,11 @@ local function updateWeaponCategory()
         State.WeaponName = nil
     end
 
-    -- Use current config to compute FOVs
     State.SilentFOV = getFOVSize(Silent)
     State.CameraFOV = getFOVSize(CameraAim)
     State.TriggerFOV = Vector3.new(Trigger.FOV.X, Trigger.FOV.Y, Trigger.FOV.Z)
 end
 
--- cheats
 local ScreenGui = Instance.new("ScreenGui")
 ScreenGui.Name = "UserLayer_Runtime"
 ScreenGui.ResetOnSpawn = false
@@ -214,7 +203,6 @@ local function updateESP()
     end
 end
 
--- yea idk
 local RayParams = RaycastParams.new()
 RayParams.FilterType = Enum.RaycastFilterType.Blacklist
 RayParams.IgnoreWater = true
@@ -267,21 +255,17 @@ local function getBestTarget(conditions)
     return best
 end
 
--- yeaaa we got closest point
-local function getClosestPointOnCharacter(char, mouseRay)
-    -- Returns a CFrame position (the closest point on the character to the mouse ray)
+local function getClosestPointOnCharacter(char)
     local closestPoint = nil
     local closestDist = math.huge
 
     local function processPart(part)
         if not part:IsA("BasePart") then return end
-        -- Get the part's bounding box in world space
         local cf = part.CFrame
         local size = part.Size
         local scale = Silent['Closest Point'].Scale or 0.67
         local half = size * scale * 0.5
 
-        -- 8 corners of the scaled box
         local corners = {
             cf * Vector3.new(-half.X, -half.Y, -half.Z),
             cf * Vector3.new( half.X, -half.Y, -half.Z),
@@ -294,7 +278,6 @@ local function getClosestPointOnCharacter(char, mouseRay)
         }
 
         for _, corner in ipairs(corners) do
-            -- Project corner onto screen
             local screenPos, onScreen = Camera:WorldToViewportPoint(corner)
             if onScreen then
                 local dist = (Vector2.new(screenPos.X, screenPos.Y) - Vector2.new(Mouse.X, Mouse.Y)).Magnitude
@@ -306,7 +289,6 @@ local function getClosestPointOnCharacter(char, mouseRay)
         end
     end
 
-    -- Iterate over all parts in character
     for _, obj in ipairs(char:GetDescendants()) do
         processPart(obj)
     end
@@ -314,10 +296,9 @@ local function getClosestPointOnCharacter(char, mouseRay)
     return closestPoint
 end
 
--- yes sorry silent is hooked
 local __index
 __index = hookmetamethod(game, "__index", function(self, key)
-if not Silent then return __index(self, key) end
+    if not Silent then return __index(self, key) end
     if self == Mouse and (key == "Hit" or key == "Target") and State.Target then
         local char = State.Target.Character
         if char then
@@ -327,10 +308,8 @@ if not Silent then return __index(self, key) end
                 local targetPos
 
                 if hitPart == "Closest Point" then
-                    -- Use the advanced closest point calculation
-                    targetPos = getClosestPointOnCharacter(char, Mouse.UnitRay)
+                    targetPos = getClosestPointOnCharacter(char)
                     if not targetPos then
-                        -- Fallback to head
                         local head = char:FindFirstChild("Head")
                         if head then
                             targetPos = head.Position
@@ -343,7 +322,6 @@ if not Silent then return __index(self, key) end
                     end
                 end
 
-                -- Apply prediction
                 if targetPos then
                     local vel = (char:FindFirstChild("HumanoidRootPart") and char.HumanoidRootPart.Velocity) or Vector3.new()
                     local pred = Silent.Prediction
@@ -352,7 +330,7 @@ if not Silent then return __index(self, key) end
                     if key == "Hit" then
                         return CFrame.new(targetPos)
                     else
-                        return char:FindFirstChild("Head")  -- fallback for Target
+                        return char:FindFirstChild("Head")
                     end
                 end
             end
@@ -361,13 +339,10 @@ if not Silent then return __index(self, key) end
     return __index(self, key)
 end)
 
--- main
 RunService.RenderStepped:Connect(function()
-if not General then return end
-    -- Update camera reference
+    if not General then return end
     Camera = Workspace.CurrentCamera
 
-    -- Auto target mode
     if General.Mode == 'Auto' then
         local newTarget = getBestTarget(FilterSelected)
         if newTarget and newTarget ~= State.Target then
@@ -379,7 +354,6 @@ if not General then return end
         end
     end
 
-    -- Camera Aimbot
     if CameraAim.Enabled and State.TrackingTarget and State.TrackingTarget.Character then
         local char = State.TrackingTarget.Character
         local head = char:FindFirstChild("Head")
@@ -405,7 +379,6 @@ if not General then return end
         end
     end
 
-    -- Trigger Bot
     if Trigger.Enabled and State.Target and State.Target.Character then
         local mode = Trigger.Activation['Activation Mode']
         local active = mode == "Always"
@@ -424,7 +397,6 @@ if not General then return end
         end
     end
 
-    -- Update UI
     if State.UIEnabled then
         OutputLabel.Position = UDim2.new(0, State.UIPos.X, 0, State.UIPos.Y)
         if State.Target then
@@ -436,15 +408,12 @@ if not General then return end
         end
     end
 
-    -- Update ESP
     updateESP()
 end)
 
--- Input Handling
 UIS.InputBegan:Connect(function(input, gameProcessed)
     if gameProcessed then return end
 
-    -- Toggle target selection
     if input.KeyCode == Enum.KeyCode[General.Toggle] then
         if State.Target then
             State.Target = nil
@@ -458,7 +427,6 @@ UIS.InputBegan:Connect(function(input, gameProcessed)
         end
     end
 
-    -- ESP toggle/hold
     if input.KeyCode == Enum.KeyCode[ESPcfg.Activation['Activation Bind']] then
         if ESPcfg.Activation['Activation Mode'] == "Toggle" then
             State.ESPEnabled = not State.ESPEnabled
@@ -467,7 +435,6 @@ UIS.InputBegan:Connect(function(input, gameProcessed)
         end
     end
 
-    -- Trigger bot hold/toggle
     if input.KeyCode == Enum.KeyCode[Trigger.Activation['Activation Bind']] then
         local mode = Trigger.Activation['Activation Mode']
         if mode == "Toggle" then
@@ -488,7 +455,6 @@ UIS.InputEnded:Connect(function(input, gameProcessed)
     end
 end)
 
--- plr tracking
 local function setupPlayer(plr)
     if plr == LocalPlayer then return end
     registerESP(plr)
@@ -509,7 +475,6 @@ local function setupPlayer(plr)
     end)
 end
 
--- Initial players
 for _, plr in ipairs(Players:GetPlayers()) do
     setupPlayer(plr)
 end
@@ -524,7 +489,6 @@ Players.PlayerRemoving:Connect(function(plr)
     end
 end)
 
--- Local player character changes
 LocalPlayer.CharacterAdded:Connect(function(char)
     char:WaitForChild("HumanoidRootPart")
     updateWeaponCategory()
@@ -540,7 +504,6 @@ if LocalPlayer.Character then
     updateWeaponCategory()
 end
 
--- Refresh valid players periodically
 refreshValidPlayers()
 Players.PlayerAdded:Connect(refreshValidPlayers)
 Players.PlayerRemoving:Connect(refreshValidPlayers)
@@ -549,23 +512,21 @@ for _, plr in ipairs(Players:GetPlayers()) do
         plr.Character.Humanoid.Died:Connect(refreshValidPlayers)
     end
 end
--- cfg reload thing
+
 task.spawn(function()
     while task.wait(3) do
-        -- Check if config was updated (shared._configUpdated flag)
         if shared._configUpdated then
             refreshSettings()
             shared._configUpdated = false
-            if General.Console then
+            if General and General.Console then
                 print(" [+] klient.fun -> Synced config")
             end
         end
     end
 end)
 
--- Init thing
 refreshSettings()
--- Weapon Mods
+
 if General['Weapon Modifications'] and General['Weapon Modifications'].Enabled then
     local oldRandom = math.random
     math.random = function(l, u)
@@ -579,7 +540,6 @@ if General['Weapon Modifications'] and General['Weapon Modifications'].Enabled t
     end
 end
 
--- fps and console thing
 if General.FpsUnlocker and setfpscap then
     setfpscap(999)
 end
