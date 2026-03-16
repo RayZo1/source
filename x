@@ -1,6 +1,6 @@
 if _G.SessionStarted then
     if shared.config.General.Console then
-        print(" [+] Synchronized")
+        print(" [+] klient.fun -> Synchronized")
     end
     shared._configUpdated = true
     return
@@ -8,10 +8,10 @@ end
 _G.SessionStarted = true
 
 if shared.config.General.Console then
-    print(" [+] Initializing")
+    print(" [+] klient.fun -> Initializing")
 end
 
--- Services & globals
+-- service and global
 local Players = game:GetService("Players")
 local UIS = game:GetService("UserInputService")
 local Workspace = game:GetService("Workspace")
@@ -23,7 +23,7 @@ local LocalPlayer = Players.LocalPlayer
 local Mouse = LocalPlayer:GetMouse()
 local Camera = Workspace.CurrentCamera
 
--- Configuration shortcuts
+-- cfg calls
 local Settings = shared.config
 local General = Settings.General
 local Silent = Settings['Silent Aim']
@@ -35,7 +35,6 @@ local FilterSelected = Conditions["Whilst a player is selected"]
 local FilterSelecting = Conditions["Whilst selecting a player"]
 local Redir = Silent.Redirection   -- new redirection config
 
--- Precomputed weapon tables
 local ShotgunTypes = {
     ['[Double-Barrel SG]'] = true,
     ['[TacticalShotgun]'] = true,
@@ -48,9 +47,6 @@ local PistolTypes = {
     ['[Glock]'] = true
 }
 
--- ============================================================================
--- State
--- ============================================================================
 local State = {
     Target = nil,
     TrackingTarget = nil,
@@ -70,7 +66,7 @@ local State = {
     OverwrittenTools = {},          -- track which tools we've already patched
 }
 
--- Utility: check if player is knocked
+-- knock check ig
 local function isKnocked(plr)
     local char = plr.Character
     if not char then return false end
@@ -78,7 +74,7 @@ local function isKnocked(plr)
     return effects and effects:FindFirstChild("K.O") and effects["K.O"].Value
 end
 
--- Refresh list of valid players (alive, with HumanoidRootPart)
+-- refresh plrs
 local function refreshValidPlayers()
     local new = {}
     for _, plr in ipairs(Players:GetPlayers()) do
@@ -92,7 +88,7 @@ local function refreshValidPlayers()
     State.ValidPlayers = new
 end
 
--- Update weapon category and FOVs
+-- weapon n fov
 local function updateWeaponCategory()
     local char = LocalPlayer.Character
     local tool = char and char:FindFirstChildOfClass("Tool")
@@ -127,9 +123,7 @@ local function updateWeaponCategory()
     State.TriggerFOV = Vector3.new(Trigger.FOV.X, Trigger.FOV.Y, Trigger.FOV.Z)
 end
 
--- ============================================================================
--- ESP
--- ============================================================================
+-- omg wallhacks
 local ScreenGui = Instance.new("ScreenGui")
 ScreenGui.Name = "UserLayer_Runtime"
 ScreenGui.ResetOnSpawn = false
@@ -207,9 +201,7 @@ local function updateESP()
     end
 end
 
--- ============================================================================
--- Helper Functions
--- ============================================================================
+-- sum help boii
 local RayParams = RaycastParams.new()
 RayParams.FilterType = Enum.RaycastFilterType.Blacklist
 RayParams.IgnoreWater = true
@@ -262,9 +254,7 @@ local function getBestTarget(conditions)
     return best
 end
 
--- ============================================================================
--- Silent Aim Hook
--- ============================================================================
+-- yes the silent aim is sadly hooked
 local __index
 __index = hookmetamethod(game, "__index", function(self, key)
     if self == Mouse and (key == "Hit" or key == "Target") and State.Target then
@@ -302,9 +292,7 @@ __index = hookmetamethod(game, "__index", function(self, key)
     return __index(self, key)
 end)
 
--- ============================================================================
--- Main Render Loop
--- ============================================================================
+-- where shit goes down
 RunService.RenderStepped:Connect(function()
     -- Update camera reference
     Camera = Workspace.CurrentCamera
@@ -382,9 +370,7 @@ RunService.RenderStepped:Connect(function()
     updateESP()
 end)
 
--- ============================================================================
--- Input Handling
--- ============================================================================
+-- input handling
 UIS.InputBegan:Connect(function(input, gameProcessed)
     if gameProcessed then return end
 
@@ -484,7 +470,7 @@ if LocalPlayer.Character then
     updateWeaponCategory()
 end
 
--- Refresh valid players periodically or on events
+-- refresh the community
 refreshValidPlayers()
 Players.PlayerAdded:Connect(refreshValidPlayers)
 Players.PlayerRemoving:Connect(refreshValidPlayers)
@@ -494,9 +480,7 @@ for _, plr in ipairs(Players:GetPlayers()) do
     end
 end
 
--- ============================================================================
--- Weapon Modifications (math.random hook)
--- ============================================================================
+-- mods
 if General['Weapon Modifications'] and General['Weapon Modifications'].Enabled then
     local oldRandom = math.random
     math.random = function(l, u)
@@ -510,16 +494,11 @@ if General['Weapon Modifications'] and General['Weapon Modifications'].Enabled t
     end
 end
 
--- ============================================================================
--- FPS Unlocker & Console
--- ============================================================================
+-- yes bro
 if General.FpsUnlocker and setfpscap then
     setfpscap(999)
 end
 if General.Console then
-    print(" [+] Active")
+    print(" [+] klient.fun -> Active")
 end
-
--- ============================================================================
--- Done
--- ============================================================================
+-- Jew
