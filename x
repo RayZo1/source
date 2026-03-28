@@ -1,1712 +1,3860 @@
-local cfg = shared.Glory
-local players = game:GetService("Players")
-local uis = game:GetService("UserInputService")
-local runservice = game:GetService("RunService")
-local workspace = game:GetService("Workspace")
-local replicatedstorage = game:GetService("ReplicatedStorage")
-local camera = workspace.CurrentCamera
-local localplayer = players.LocalPlayer
-local mouse = localplayer:GetMouse()
-
-local currenttarget = nil
-local silentaimactive = false
-local camlockactive = false
-local triggerenabled = false
-local esplabels = {}
-local superjumpenabled = false
-local speedenabled = false
-local isfiring = false
-local lastrapidfire = 0
-local lastvisibletarget = nil
-local lasttriggerclick = 0
-local lasttargetscan = 0
-local scanrate = 1 / 20
-
-local haswalljumped = false
-local walljumpconnection = nil
-
-local rayparams = RaycastParams.new()
-rayparams.FilterType = Enum.RaycastFilterType.Exclude
-rayparams.IgnoreWater = true
-
-local knifedata = {}
-
-local knifeskins = {
-    ["Golden Age Tanto"] = {soundid = "rbxassetid://5917819099", animationid = "rbxassetid://13473404819", positionoffset = Vector3.new(0, -0.20, -1.2), rotationoffset = Vector3.new(90, 263.7, 180)},
-    ["GPO-Knife"] = {soundid = "rbxassetid://4604390759", animationid = "rbxassetid://14014278925", positionoffset = Vector3.new(0.00, -0.32, -1.07), rotationoffset = Vector3.new(90, -97.4, 90)},
-    ["GPO-Knife Prestige"] = {soundid = "rbxassetid://4604390759", animationid = "rbxassetid://14014278925", positionoffset = Vector3.new(0.00, -0.32, -1.07), rotationoffset = Vector3.new(90, -97.4, 90)},
-    ["Heaven"] = {soundid = "rbxassetid://14489860007", animationid = "rbxassetid://14500266726", positionoffset = Vector3.new(-0.02, -0.82, 0.20), rotationoffset = Vector3.new(64.42, 3.79, 0.00)},
-    ["Love Kukri"] = {soundid = "", animationid = "", positionoffset = Vector3.new(-0.14, 0.14, -1.62), rotationoffset = Vector3.new(-90.00, 180.00, -4.97), particle = true, textureid = "rbxassetid://12124159284"},
-    ["Purple Dagger"] = {soundid = "rbxassetid://17822743153", animationid = "rbxassetid://17824999722", positionoffset = Vector3.new(-0.13, -0.24, -1.80), rotationoffset = Vector3.new(89.05, 96.63, 180.00)},
-    ["Blue Dagger"] = {soundid = "rbxassetid://17822737046", animationid = "rbxassetid://17824995184", positionoffset = Vector3.new(-0.13, -0.24, -1.80), rotationoffset = Vector3.new(89.05, 96.63, 180.00)},
-    ["Green Dagger"] = {soundid = "rbxassetid://17822741762", animationid = "rbxassetid://17825004320", positionoffset = Vector3.new(-0.13, -0.24, -1.07), rotationoffset = Vector3.new(89.05, 96.63, 180.00)},
-    ["Red Dagger"] = {soundid = "rbxassetid://17822952417", animationid = "rbxassetid://17825008844", positionoffset = Vector3.new(-0.13, -0.24, -1.07), rotationoffset = Vector3.new(89.05, 96.63, 180.00)},
-    ["Portal"] = {soundid = "rbxassetid://16058846352", animationid = "rbxassetid://16058633881", positionoffset = Vector3.new(-0.13, -0.35, -0.57), rotationoffset = Vector3.new(89.05, 96.63, 180.00)},
-    ["Emerald Butterfly"] = {soundid = "rbxassetid://14931902491", animationid = "rbxassetid://14918231706", positionoffset = Vector3.new(-0.02, -0.30, -0.65), rotationoffset = Vector3.new(180.00, 90.95, 180.00)},
-    ["Boy"] = {soundid = "rbxassetid://18765078331", animationid = "rbxassetid://18789158908", positionoffset = Vector3.new(-0.02, -0.09, -0.73), rotationoffset = Vector3.new(89.05, -88.11, 180.00)},
-    ["Girl"] = {soundid = "rbxassetid://18765078331", animationid = "rbxassetid://18789162944", positionoffset = Vector3.new(-0.02, -0.16, -0.73), rotationoffset = Vector3.new(89.05, -88.11, 180.00)},
-    ["Dragon"] = {soundid = "rbxassetid://14217789230", animationid = "rbxassetid://14217804400", positionoffset = Vector3.new(-0.02, -0.32, -0.98), rotationoffset = Vector3.new(89.05, 90.95, 180.00)},
-    ["Void"] = {soundid = "rbxassetid://14756591763", animationid = "rbxassetid://14774699952", positionoffset = Vector3.new(-0.02, -0.22, -0.85), rotationoffset = Vector3.new(180.00, 90.95, 180.00)},
-    ["Wild West"] = {soundid = "rbxassetid://16058689026", animationid = "rbxassetid://16058148839", positionoffset = Vector3.new(-0.02, -0.24, -1.15), rotationoffset = Vector3.new(-91.89, 90.95, 180.00)},
-    ["Iced Out"] = {soundid = "rbxassetid://14924261405", animationid = "rbxassetid://18465353361", positionoffset = Vector3.new(0.02, -0.08, 0.99), rotationoffset = Vector3.new(180.00, -90.95, -180.00)},
-    ["Reptile"] = {soundid = "rbxassetid://18765103349", animationid = "rbxassetid://18788955930", positionoffset = Vector3.new(-0.03, -0.06, -0.92), rotationoffset = Vector3.new(168.63, 90.00, -180.00)},
-    ["Emerald"] = {soundid = "", animationid = "", positionoffset = Vector3.new(-0.03, -0.06, -0.92), rotationoffset = Vector3.new(168.63, 90.00, 108.00)},
-    ["Ribbon"] = {soundid = "rbxassetid://130974579277249", animationid = "rbxassetid://124102609796063", positionoffset = Vector3.new(0.02, -0.25, -0.05), rotationoffset = Vector3.new(90.00, 0.00, 180.00)},
-}
-
-local fovparts = {
-    silentaim = Instance.new("Part"),
-    camlock = Instance.new("Part"),
-    triggerbot = Instance.new("Part"),
-}
-
-for name, part in pairs(fovparts) do
-    part.Anchored = true
-    part.CanCollide = false
-    part.CanQuery = false
-    part.CanTouch = false
-    part.CastShadow = false
-    part.Transparency = 1
-    part.BrickColor = BrickColor.new("Grey")
-    part.Material = Enum.Material.Neon
-    part.Name = "fovoutline3d_" .. name
-    part.Parent = workspace
+if not LPH_OBFUSCATED then
+    LPH_JIT_MAX = function(...) return ... end
+    LPH_NO_VIRTUALIZE = function(...) return ... end
+    LPH_ENCSTR = function(...) return ... end
+    LPH_ENCFUNC = function(...) return ... end
+    LPH_CRASH = function() end
 end
-
-local fov2dboxes = {
-    silentaim = {},
-    camlock = {},
-    triggerbot = {},
-}
-
-for key in pairs(fov2dboxes) do
-    for i = 1, 4 do
-        local line = Drawing.new("Line")
-        line.Thickness = 1.5
-        line.Color = Color3.fromRGB(150, 150, 150)
-        line.Visible = false
-        line.ZIndex = 5
-        fov2dboxes[key][i] = line
-    end
-end
-
-local targetline = Drawing.new("Line")
-targetline.Visible = false
-targetline.Thickness = cfg['target line']['thickness']
-targetline.Transparency = cfg['target line']['transparency']
-targetline.ZIndex = 999
-
-local function clearmesh(tool, exclude)
-    local children = tool:GetChildren()
-    for i = 1, #children do
-        local v = children[i]
-        if v:IsA("MeshPart") and v ~= exclude then
-            v:Destroy()
-        end
-    end
-end
-
---[[local function applygun(tool, name)
-    local orig = tool:FindFirstChildOfClass("MeshPart")
-    if not orig then return end
-
-    local skinmodules = replicatedstorage:FindFirstChild("SkinModules")
-    if not skinmodules then return end
-
-    local ok, skinmodulesreq = pcall(function()
-        return require(skinmodules)
-    end)
-    if not ok or not skinmodulesreq then return end
-
-    local info = skinmodulesreq[tool.Name] and skinmodulesreq[tool.Name][name]
-    if not info then return end
-
-    clearmesh(tool, orig)
-
-    local skinpart = info.TextureID
-    if typeof(skinpart) == "Instance" then
-        local clone = skinpart:Clone()
-        clone.Parent = tool
-        clone.CFrame = orig.CFrame
-        clone.Name = "CurrentSkin"
-
-        local w = Instance.new("Weld")
-        w.Part0 = clone
-        w.Part1 = orig
-        w.C0 = info.CFrame:Inverse()
-        w.Parent = clone
-
-        orig.Transparency = 1
-    else
-        orig.TextureID = skinpart
-        orig.Transparency = 0
-    end
-
-    local handle = tool:FindFirstChild("Handle")
-    if not handle then return end
-
-    local shoot = handle:FindFirstChild("ShootSound")
-    if shoot then
-        local skinassets = replicatedstorage:FindFirstChild("SkinAssets")
-        if skinassets then
-            local gunsounds = skinassets:FindFirstChild("GunShootSounds")
-            if gunsounds then
-                local sounds = gunsounds:FindFirstChild(tool.Name)
-                local obj = sounds and sounds:FindFirstChild(name)
-                if obj then
-                    shoot.SoundId = obj.Value
-                end
-            end
-        end
-    end
-
-    local skinassets = replicatedstorage:FindFirstChild("SkinAssets")
-    if skinassets then
-        local particlefolder = skinassets:FindFirstChild("GunHandleParticle")
-        if particlefolder then
-            local particlesource = particlefolder:FindFirstChild(name)
-            if particlesource then
-                local pe = particlesource:FindFirstChild("ParticleEmitter")
-                if pe then
-                    for _, existing in ipairs(handle:GetChildren()) do
-                        if existing:IsA("ParticleEmitter") then
-                            existing:Destroy()
-                        end
-                    end
-                    pe:Clone().Parent = handle
-                end
-            end
-        end
-    end
-
-    handle:SetAttribute("SkinName", name)
-end
-
-local function cleanknife(tool)
-    local data = knifedata[tool]
-    if data then
-        if data.track then
-            data.track:Stop()
-            data.track:Destroy()
-            data.track = nil
-        end
-        if data.welds then
-            for _, w in ipairs(data.welds) do
-                if w then w:Destroy() end
-            end
-        end
-        if data.sounds then
-            for _, s in ipairs(data.sounds) do
-                if s and s.Parent then s:Destroy() end
-            end
-        end
-    end
-
-    local mesh = tool:FindFirstChild("Default")
-    if mesh then
-        local children = mesh:GetChildren()
-        for i = 1, #children do
-            local v = children[i]
-            if v.Name == "Handle.R" or v:IsA("Model") or (v:IsA("BasePart") and v.Name ~= "Default") then
-                v:Destroy()
-            end
-        end
-        mesh.Transparency = 0
-    end
-
-    knifedata[tool] = nil
-end
-
-local function applyknife(char, tool, skin)
-    local skincfg = knifeskins[skin]
-    if not skincfg then return end
-
-    local hum = char:FindFirstChild("Humanoid")
-    local rhand = char:FindFirstChild("RightHand")
-    if not hum or not rhand then return end
-
-    cleanknife(tool)
-    knifedata[tool] = {track = nil, welds = {}, sounds = {}}
-    local data = knifedata[tool]
-
-    local mesh = tool:FindFirstChild("Default")
-    if not mesh then return end
-    mesh.Transparency = 1
-
-    local skinmodules = replicatedstorage:FindFirstChild("SkinModules")
-    if not skinmodules then return end
-    local knives = skinmodules:FindFirstChild("Knives")
-    if not knives then return end
-
-    local skinmodel = knives:FindFirstChild(skin)
-    if not skinmodel then return end
-    local clone = skinmodel:Clone()
-    clone.Name = skin
-
-    local handr = Instance.new("Part")
-    handr.Name = "Handle.R"
-    handr.Transparency = 1
-    handr.CanCollide = false
-    handr.Anchored = false
-    handr.Size = Vector3.new(0.001, 0.001, 0.001)
-    handr.Massless = true
-    handr.Parent = mesh
-
-    local m6d = Instance.new("Motor6D")
-    m6d.Name = "Handle.R"
-    m6d.Part0 = rhand
-    m6d.Part1 = handr
-    m6d.Parent = handr
-
-    local offset = CFrame.new(skincfg.positionoffset) * CFrame.Angles(math.rad(skincfg.rotationoffset.X), math.rad(skincfg.rotationoffset.Y), math.rad(skincfg.rotationoffset.Z))
-
-    if clone:IsA("Model") then
-        if not clone.PrimaryPart then
-            local children = clone:GetChildren()
-            for i = 1, #children do
-                local c = children[i]
-                if c:IsA("BasePart") then
-                    clone.PrimaryPart = c
-                    break
-                end
-            end
-        end
-        if clone.PrimaryPart then
-            local descendants = clone:GetDescendants()
-            for i = 1, #descendants do
-                local p = descendants[i]
-                if p:IsA("BasePart") then
-                    p.CanCollide = false
-                    p.Massless = true
-                    p.Anchored = false
-                    local w = Instance.new("Weld")
-                    w.Part0 = handr
-                    w.Part1 = p
-                    w.C0 = offset
-                    w.C1 = p.CFrame:ToObjectSpace(clone.PrimaryPart.CFrame)
-                    w.Parent = p
-                    table.insert(data.welds, w)
-                end
-            end
-        end
-        clone.Parent = mesh
-    elseif clone:IsA("BasePart") then
-        clone.CanCollide = false
-        clone.Massless = true
-        clone.Anchored = false
-
-        if clone:IsA("MeshPart") and skincfg.textureid then
-            clone.TextureID = skincfg.textureid
-        end
-
-        if skincfg.particle then
-            local skinassets = replicatedstorage:FindFirstChild("SkinAssets")
-            if skinassets then
-                local particlefolder = skinassets:FindFirstChild("GunHandleParticle")
-                if particlefolder then
-                    local particlesource = particlefolder:FindFirstChild(skin)
-                    if particlesource then
-                        local pe = particlesource:FindFirstChild("ParticleEmitter")
-                        if pe then
-                            pe:Clone().Parent = clone
-                        end
-                    end
-                end
-            end
-        end
-
-        clone.Parent = mesh
-        local w = Instance.new("Weld")
-        w.Part0 = handr
-        w.Part1 = clone
-        w.C0 = offset
-        w.Parent = clone
-        table.insert(data.welds, w)
-    end
-
-    local animator = hum:FindFirstChildOfClass("Animator")
-    if not animator then
-        animator = Instance.new("Animator")
-        animator.Parent = hum
-    end
-    if skincfg.animationid and skincfg.animationid ~= "" then
-        local anim = Instance.new("Animation")
-        anim.AnimationId = skincfg.animationid
-        local track = animator:LoadAnimation(anim)
-        track.Looped = false
-        track:Play()
-        data.track = track
-        anim:Destroy()
-        track.Ended:Once(function()
-            if data.track == track then
-                data.track = nil
-            end
-            track:Destroy()
-        end)
-    end
-    if skincfg.soundid and skincfg.soundid ~= "" then
-        local snd = Instance.new("Sound")
-        snd.SoundId = skincfg.soundid
-        snd.Parent = workspace
-        snd:Play()
-        table.insert(data.sounds, snd)
-        snd.Ended:Connect(function()
-            snd:Destroy()
-        end)
-    end
-
-    tool:SetAttribute("CurrentKnifeSkin", skin)
-end]]
-
-local toolregistry = {}
-
---[[local function setuptool(tool)
-    if not tool:IsA("Tool") then return end
-    if toolregistry[tool] then return end
-    toolregistry[tool] = true
-
-    tool.Equipped:Connect(function()
-        if not cfg['skins']['enabled'] then return end
-
-        local char = tool.Parent
-        if char ~= localplayer.Character then return end
-
-        local skin = cfg['skins']['weapons'][tool.Name]
-        if not skin or skin == "" then return end
-
-        if tool.Name == "[Knife]" then
-            applyknife(char, tool, skin)
-        else
-            applygun(tool, skin)
-        end
-    end)
-
-    tool.Unequipped:Connect(function()
-        if tool.Name == "[Knife]" then
-            local data = knifedata[tool]
-            if not data then return end
-            if data.welds then
-                for _, w in ipairs(data.welds) do
-                    if w then w:Destroy() end
-                end
-                data.welds = {}
-            end
-            if data.sounds then
-                for _, s in ipairs(data.sounds) do
-                    if s and s.Parent then s:Destroy() end
-                end
-                data.sounds = {}
-            end
-            local mesh = tool:FindFirstChild("Default")
-            if mesh then
-                local children = mesh:GetChildren()
-                for i = 1, #children do
-                    local v = children[i]
-                    if v.Name == "Handle.R" or v:IsA("Model") or (v:IsA("MeshPart") and v.Name ~= "Default") then
-                        v:Destroy()
-                    end
-                end
-                mesh.Transparency = 0
-            end
-        end
-    end)
-
-    if tool.Parent == localplayer.Character then
-        if not cfg['skins']['enabled'] then return end
-
-        local skin = cfg['skins']['weapons'][tool.Name]
-        if skin and skin ~= "" then
-            if tool.Name == "[Knife]" then
-                task.spawn(function()
-                    applyknife(localplayer.Character, tool, skin)
-                end)
-            else
-                task.spawn(function()
-                    applygun(tool, skin)
-                end)
-            end
-        end
-    end
-end]]
-
-local function watchchar(char)
-    if not char then return end
-    local children = char:GetChildren()
-    for i = 1, #children do
-        local v = children[i]
-        if v:IsA("Tool") then
-            --setuptool(v)
-        end
-    end
-    char.ChildAdded:Connect(function(v)
-        if v:IsA("Tool") then
-            --setuptool(v)
-        end
-    end)
-end
-
-local function applyheadless(char)
-    if not cfg['headless']['enabled'] then return end
-    if not char then return end
-
-    local head = char:FindFirstChild("Head")
-    if head then
-        head.Transparency = 1
-        head.CanCollide = false
-        local face = head:FindFirstChild("face")
-        if face then
-            face.Transparency = 1
-        end
-    end
-
-    if cfg['headless']['remove face accessories'] then
-        for _, accessory in ipairs(char:GetChildren()) do
-            if accessory:IsA("Accessory") then
-                if accessory.AccessoryType == Enum.AccessoryType.Face then
-                    local handle = accessory:FindFirstChild("Handle")
-                    if handle then
-                        handle.Transparency = 1
-                        handle.CanCollide = false
-                    end
-                end
-            end
-        end
-    end
-
-    char.ChildAdded:Connect(function(child)
-        if not cfg['headless']['enabled'] then return end
-        if child:IsA("Accessory") and child.AccessoryType == Enum.AccessoryType.Face then
-            if not cfg['headless']['remove face accessories'] then return end
-            local handle = child:FindFirstChild("Handle")
-            if not handle then
-                handle = child:WaitForChild("Handle", 5)
-            end
-            if handle then
-                handle.Transparency = 1
-                handle.CanCollide = false
-            end
-        end
-    end)
-end
-
-local function elasticout(t)
-    local p = 0.3
-    return math.pow(2, -10 * t) * math.sin((t - p / 4) * (2 * math.pi) / p) + 1
-end
-
-local function sineinout(t)
-    return -(math.cos(math.pi * t) - 1) / 2
-end
-
-local function holdingknife()
-    if not cfg['settings']['knife check'] then return false end
-
-    local char = localplayer.Character
-    if not char then return false end
-
-    local tool = char:FindFirstChildOfClass("Tool")
-    if tool and tool.Name == "[Knife]" then return true end
-
-    return false
-end
-
-local function playerknocked(player)
-    if not cfg['settings']['knock check'] then return false end
-
-    if player.Character then
-        local bodyeffects = player.Character:FindFirstChild("BodyEffects")
-        if bodyeffects then
-            local ko = bodyeffects:FindFirstChild("K.O")
-            if ko and ko.Value == true then return true end
-
-            local knocked = bodyeffects:FindFirstChild("Knocked")
-            if knocked and knocked.Value == true then return true end
-        end
-    end
-
-    return false
-end
-
-local function selfknocked()
-    if not cfg['settings']['self knock check'] then return false end
-
-    if localplayer.Character then
-        local bodyeffects = localplayer.Character:FindFirstChild("BodyEffects")
-        if bodyeffects then
-            local ko = bodyeffects:FindFirstChild("K.O")
-            if ko and ko.Value == true then return true end
-
-            local knocked = bodyeffects:FindFirstChild("Knocked")
-            if knocked and knocked.Value == true then return true end
-        end
-    end
-    return false
-end
-
-local function cansee(part)
-    if not cfg['settings']['visible check'] then return true end
-    if not part or not part.Parent then return false end
-
-    local char = part.Parent
-    local origin = camera.CFrame.Position
-    local dir = (part.Position - origin).Unit * (part.Position - origin).Magnitude
-
-    rayparams.FilterDescendantsInstances = {localplayer.Character, char, fovparts.silentaim, fovparts.camlock, fovparts.triggerbot}
-
-    local result = workspace:Raycast(origin, dir, rayparams)
-
-    return result == nil or result.Instance:IsDescendantOf(char)
-end
-
-local function withindistance(part, distcfg)
-    if not distcfg or not distcfg['enabled'] then return true end
-    if not part or not part.Parent then return false end
-
-    local char = localplayer.Character
-    if not char then return false end
-
-    local hrp = char:FindFirstChild("HumanoidRootPart")
-    if not hrp then return false end
-
-    return (hrp.Position - part.Position).Magnitude <= distcfg['max distance']
-end
-
-local function getbodyparts(char)
-    return {
-        char:FindFirstChild("Head"),
-        char:FindFirstChild("UpperTorso"),
-        char:FindFirstChild("HumanoidRootPart"),
-        char:FindFirstChild("LowerTorso"),
-        char:FindFirstChild("LeftUpperArm"),
-        char:FindFirstChild("RightUpperArm"),
-        char:FindFirstChild("LeftLowerArm"),
-        char:FindFirstChild("RightLowerArm"),
-        char:FindFirstChild("LeftHand"),
-        char:FindFirstChild("RightHand"),
-        char:FindFirstChild("LeftUpperLeg"),
-        char:FindFirstChild("RightUpperLeg"),
-        char:FindFirstChild("LeftLowerLeg"),
-        char:FindFirstChild("RightLowerLeg"),
-        char:FindFirstChild("LeftFoot"),
-        char:FindFirstChild("RightFoot"),
+--// Services
+local Players = game:GetService("Players")
+local Workspace = game.Workspace
+local RunService = game:GetService("RunService")
+local TweenService = game:GetService("TweenService")
+local UserInputService = game:GetService("UserInputService")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+--// Self
+local Self = Players.LocalPlayer
+local Mouse = Self:GetMouse()
+local Camera = workspace.CurrentCamera
+local GuiInsetOffsetY = game:GetService('GuiService'):GetGuiInset().Y
+--// Cheat
+local Mango = {
+    RBXConnections = {},
+    Locals = {
+        GunScriptDisabled = true, -->: Boolean
+        IsTriggerBotting = nil, -->: Boolean
+        TriggerbotTarget = nil, -->: Player
+        IsDoubleTapping = nil, -->: Boolean
+        SilentAimTarget = nil, -->: Player
+        AimAssistTarget = nil, -->: Player
+        IsWalkSpeeding = nil, -->: Boolean
+        IsJumpSpeeding = nil, -->: Boolean
+        DoubleTapState = nil, -->: Boolean
+        CurrentWeapon = nil, -->: String
+        IsBoxFocused = nil, -->: Boolean
+        TriggerState = nil, -->: Boolean
+        HitPosition = nil, -->: Vector3
+        HitTrigger = nil, --> Instance
+        MoveVector = nil, -->: Vector3
+        LastShot = 0, -->: Float
+        IsAimed = nil, -->: Boolean
+        HitPart = nil, -->: Instance
+    },
+    Visuals = {
+        Triggerbot = nil, -->: Instance
+        WalkSpeed = nil, -->: Instance
+        DoubleTap = nil, -->: Instance
+        BoxFOV = nil,
+        AimbotFOV = nil,
+        SilentFOV = nil
     }
-end
-
-local function closestbodypart(char)
-    local closestpart = nil
-    local shortestdist = math.huge
-
-    local bodyparts = getbodyparts(char)
-    local mousepos = uis:GetMouseLocation()
-
-    for _, part in pairs(bodyparts) do
-        if part then
-            local screenpos, onscreen = camera:WorldToViewportPoint(part.Position)
-
-            if onscreen then
-                local dist = math.sqrt(
-                    (screenpos.X - mousepos.X)^2 +
-                    (screenpos.Y - mousepos.Y)^2
-                )
-
-                if dist < shortestdist then
-                    shortestdist = dist
-                    closestpart = part
-                end
-            end
-        end
-    end
-
-    return closestpart
-end
-
-local function mouseinfov3d(fovpart)
-    if not fovpart.Parent then return false end
-
-    local mpos = uis:GetMouseLocation()
-    local ray = camera:ViewportPointToRay(mpos.X, mpos.Y)
-
-    local cf = fovpart.CFrame
-    local size = fovpart.Size / 2
-
-    local localorigin = cf:PointToObjectSpace(ray.Origin)
-    local localdir = cf:VectorToObjectSpace(ray.Direction * 1000)
-
-    local tmin, tmax = -math.huge, math.huge
-
-    for _, axis in ipairs({"X", "Y", "Z"}) do
-        local o = localorigin[axis]
-        local d = localdir[axis]
-        local s = size[axis]
-
-        if math.abs(d) < 1e-8 then
-            if o < -s or o > s then return false end
-        else
-            local t1 = (-s - o) / d
-            local t2 = ( s - o) / d
-            if t1 > t2 then t1, t2 = t2, t1 end
-            tmin = math.max(tmin, t1)
-            tmax = math.min(tmax, t2)
-            if tmin > tmax then return false end
-        end
-    end
-
-    return tmax > 0
-end
-
-local function partinfov3d(part, fovcfg)
-    if not fovcfg['enabled'] then return true end
-
-    local char = part.Parent
-    if not char then return false end
-
-    local hrp = char:FindFirstChild("HumanoidRootPart")
-    if not hrp then return false end
-
-    local sx = fovcfg['size']['x']
-    local sy = fovcfg['size']['y']
-    local sz = fovcfg['size']['z']
-
-    local fovsize = hrp.Size + Vector3.new(sx, sy, sz)
-    local fovcf = hrp.CFrame
-
-    local mpos = uis:GetMouseLocation()
-    local ray = camera:ViewportPointToRay(mpos.X, mpos.Y)
-
-    local cf = fovcf
-    local size = fovsize / 2
-
-    local localorigin = cf:PointToObjectSpace(ray.Origin)
-    local localdir = cf:VectorToObjectSpace(ray.Direction * 1000)
-
-    local tmin, tmax = -math.huge, math.huge
-
-    for _, axis in ipairs({"X", "Y", "Z"}) do
-        local o = localorigin[axis]
-        local d = localdir[axis]
-        local s = size[axis]
-
-        if math.abs(d) < 1e-8 then
-            if o < -s or o > s then return false end
-        else
-            local t1 = (-s - o) / d
-            local t2 = ( s - o) / d
-            if t1 > t2 then t1, t2 = t2, t1 end
-            tmin = math.max(tmin, t1)
-            tmax = math.min(tmax, t2)
-            if tmin > tmax then return false end
-        end
-    end
-
-    return tmax > 0
-end
-
-local function mouseinfovconfig(fovcfg, targetpart)
-    if not fovcfg['enabled'] then return true end
-    if not targetpart or not targetpart.Parent then return false end
-    if fovcfg['mode'] == '2D' then
-        local char = targetpart.Parent
-        if not char then return false end
-        local hrp = char:FindFirstChild("HumanoidRootPart")
-        if not hrp then return false end
-        local sx = (hrp.Size.X + fovcfg['size']['x']) / 2
-        local sy = (hrp.Size.Y + fovcfg['size']['y']) / 2
-        local sz = (hrp.Size.Z + fovcfg['size']['z']) / 2
-        local cf = hrp.CFrame
-        local offsets = {
-            Vector3.new( sx,  sy,  sz), Vector3.new(-sx,  sy,  sz),
-            Vector3.new( sx, -sy,  sz), Vector3.new(-sx, -sy,  sz),
-            Vector3.new( sx,  sy, -sz), Vector3.new(-sx,  sy, -sz),
-            Vector3.new( sx, -sy, -sz), Vector3.new(-sx, -sy, -sz),
+}
+local Modules = {
+    Cache = {}
+}
+local Velocity_Data = {
+    Tick = tick(),
+    Sample = nil,
+    State = Enum.HumanoidStateType.Running,
+    Y = nil,
+    Recorded = {
+        Alpha = nil,
+        B_0 = nil,
+        V_T = nil,
+        V_B = nil
+    }
+}
+local Environment = {
+    Priority = {},
+    PriorityLines = {},
+    PriorityTexts = {},
+    PrioritySquares = {},
+    PriorityLabels = {},
+    PriorityTools = {},
+    PrioritySquaresOutlines = {}
+}
+local State = {
+	Connections = {},
+	ToolConnections = {},
+	Tracked = {},
+	Previous = {},
+	Current = nil,
+	Tick = tick()
+}
+local Overlay = {}
+local Binds = {}
+local KeybindHandler = {}
+local WeaponInfo = {
+    Weapons = {
+        Shotguns = {
+            "[TacticalShotgun]",
+            "[Shotgun]",
+            "[Double-Barrel SG]",
+        },
+        AutoShotguns = {
+            "[Drum-Shotgun]"
+        },
+        Pistols = {
+            "[Revolver]",
+            "[Silencer]",
+            "[Glock]"
+        },
+        Rifles = {
+            "[AR]",
+            "[SilencerAR]",
+            "[AK47]",
+            "[LMG]",
+            "[DrumGun]"
+        },
+        Bursts = {
+            "[AUG]",
+        },
+        SMG = {
+            "[SMG]",
+            "[P90]"
+        },
+        Snipers = {
+            "[Rifle]"
         }
-        local minx, miny =  math.huge,  math.huge
-        local maxx, maxy = -math.huge, -math.huge
-        local valid = false
-        for _, offset in ipairs(offsets) do
-            local screen = camera:WorldToViewportPoint(cf:PointToWorldSpace(offset))
-            if screen.Z > 0 then
-                valid = true
-                if screen.X < minx then minx = screen.X end
-                if screen.Y < miny then miny = screen.Y end
-                if screen.X > maxx then maxx = screen.X end
-                if screen.Y > maxy then maxy = screen.Y end
-            end
-        end
-        if not valid then return false end
-        local mpos = uis:GetMouseLocation()
-        return mpos.X >= minx and mpos.X <= maxx and mpos.Y >= miny and mpos.Y <= maxy
-    end
-    return partinfov3d(targetpart, fovcfg)
-end
-
-local function getscreenbounds2d(hrp, fovcfg)
-    local sx = (hrp.Size.X + fovcfg['size']['x']) / 2
-    local sy = (hrp.Size.Y + fovcfg['size']['y']) / 2
-    local sz = (hrp.Size.Z + fovcfg['size']['z']) / 2
-    local cf = hrp.CFrame
-    local offsets = {
-        Vector3.new( sx,  sy,  sz), Vector3.new(-sx,  sy,  sz),
-        Vector3.new( sx, -sy,  sz), Vector3.new(-sx, -sy,  sz),
-        Vector3.new( sx,  sy, -sz), Vector3.new(-sx,  sy, -sz),
-        Vector3.new( sx, -sy, -sz), Vector3.new(-sx, -sy, -sz),
+    },
+    Offsets = {
+        ["[Double-Barrel SG]"] = CFrame.new(0, 0.35, -2.2),
+        ["[TacticalShotgun]"] = CFrame.new(0, 0.25, -2.5),
+        ["[Drum-Shotgun]"] = CFrame.new(-0.1, 0.5, -2.5),
+        ["[Shotgun]"] = CFrame.new(0, 0.25, -2.5),
+        ["[Revolver]"] = CFrame.new(-1, 0.4, 0),
+        ["[Silencer]"] = CFrame.new(0, 0.4, 1.3),
+        ["[Glock]"] = CFrame.new(0.6, 0.25, 0),
+        ["[Rifle]"] = CFrame.new(0, 0.25, 2.5),
+        ["[AUG]"] = CFrame.new(-0.1, 0.4, 1.8),
+        ["[AR]"] = CFrame.new(2, 0.35, 0),
+        ["[SMG]"] = CFrame.new(0, 1, 0.5),
+        ["[LMG]"] = CFrame.new(0, 0.7, -3.8),
+        ["[P90]"] = CFrame.new(0, 0.2, -1.7),
+        ["[AK47]"] = CFrame.new(-0.1, 0.5, -2.5),
+        ["[SilencerAR]"] = CFrame.new(2.5, 0.35, 0),
+        ["[DrumGun]"] = CFrame.new(0, 0.4, 2.4),
+    },
+    Delays = {
+        ["[Double-Barrel SG]"] = 0.0095 + 0.05,   -- Double-Barrel
+        ["[TacticalShotgun]"] = 0.0095,           -- Tactical-Shotgun
+        ["[Drum-Shotgun]"] = 0.415,               -- Drum-Shotgun
+        ["[Shotgun]"] = 1.2,                      -- Shotgun
+        ["[Revolver]"] = 0.0095,                  -- Revolver: 0.0095
+        ["[Silencer]"] = 0.0095,                  -- Silencer
+        ["[Glock]"] = 0.0095,                     -- Glock
+        ["[Rifle]"] = 1.3095,                     -- Rifle
+        ["[AUG]"] = 0.0095,                          -- AUG (N/A)
+        ["[AR]"] = 0.15,                          -- AR
+        ["[SMG]"] = 0.6,                          -- SMG
+        ["[LMG]"] = 0.62,                         -- LMG
+        ["[P90]"] = 0.6,                          -- P90
+        ["[AK47]"] = 0.15,                        -- AK47
+        ["[SilencerAR]"] = 0.02                  -- SilencerAR
     }
-    local minx, miny =  math.huge,  math.huge
-    local maxx, maxy = -math.huge, -math.huge
-    local valid = false
-    for _, offset in ipairs(offsets) do
-        local screen = camera:WorldToViewportPoint(cf:PointToWorldSpace(offset))
-        if screen.Z > 0 then
-            valid = true
-            if screen.X < minx then minx = screen.X end
-            if screen.Y < miny then miny = screen.Y end
-            if screen.X > maxx then maxx = screen.X end
-            if screen.Y > maxy then maxy = screen.Y end
-        end
-    end
-    if not valid then return nil, nil end
-    return Vector2.new(minx, miny), Vector2.new(maxx, maxy)
-end
+}
 
-local function setbox2d(lines, tl, br, color)
-    lines[1].From = tl
-    lines[1].To   = Vector2.new(br.X, tl.Y)
-    lines[2].From = Vector2.new(tl.X, br.Y)
-    lines[2].To   = br
-    lines[3].From = tl
-    lines[3].To   = Vector2.new(tl.X, br.Y)
-    lines[4].From = Vector2.new(br.X, tl.Y)
-    lines[4].To   = br
-    for _, l in ipairs(lines) do
-        l.Color   = color
-        l.Visible = true
-    end
-end
-
-local function hidebox2d(lines)
-    for _, l in ipairs(lines) do
-        l.Visible = false
-    end
-end
-
-local function findtarget(fovcfg, distcfg, knifecheck)
-    if knifecheck and holdingknife() then return nil end
-
-    local besttarget = nil
-    local bestdist = math.huge
-    local mpos = uis:GetMouseLocation()
-
-    for _, player in pairs(players:GetPlayers()) do
-        if player ~= localplayer and player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
-            if not playerknocked(player) then
-                local char = player.Character
-                local hrp = char:FindFirstChild("HumanoidRootPart")
-                if not hrp then continue end
-
-                local screenpos, onscreen = camera:WorldToViewportPoint(hrp.Position)
-                if not onscreen then continue end
-
-                if fovcfg and fovcfg['enabled'] and not mouseinfovconfig(fovcfg, hrp) then continue end
-                if not cansee(hrp) then continue end
-                if not withindistance(hrp, distcfg) then continue end
-
-                local dist = math.sqrt(
-                    (screenpos.X - mpos.X)^2 +
-                    (screenpos.Y - mpos.Y)^2
-                )
-
-                if dist < bestdist then
-                    bestdist = dist
-                    besttarget = hrp
+local Games = {
+    [1008451066] = {
+        Name = 'Da Hood',
+        Updater = 'UpdateMousePosI2',
+        HoodGame = true,
+        Functions = {
+            KnockedFunction = function(Player)
+                if (Player) and Player.Character:FindFirstChild('BodyEffects') then
+                    return Player.Character.BodyEffects['K.O'].Value
                 end
-            end
-        end
-    end
-
-    if besttarget then
-        return closestbodypart(besttarget.Parent) or besttarget
-    end
-
-    return nil
-end
-
-local function predictedpos(part, config)
-    if not config['use prediction'] then return part.Position end
-
-    local vel = part.AssemblyLinearVelocity
-    local prediction = config['prediction']
-
-    local predval
-    if type(prediction) == "table" then
-        predval = prediction['x'] or prediction['y'] or prediction['z'] or 0.133
-    else
-        predval = (prediction == 0) and 0.133 or prediction
-    end
-
-    return part.Position + Vector3.new(
-        vel.X * predval,
-        vel.Y * predval,
-        vel.Z * predval
-    )
-end
-
-local function getcamlocktarget()
-    if camlockactive and currenttarget then
-        local player = players:GetPlayerFromCharacter(currenttarget.Parent)
-        if player and not playerknocked(player) then
-            local targetpart = nil
-
-            if cfg['camera aimbot']['hitpart'] == 'Closest Part' then
-                local now = tick()
-                if now - lasttargetscan >= scanrate then
-                    lasttargetscan = now
-                    targetpart = closestbodypart(currenttarget.Parent)
-                    if targetpart then
-                        currenttarget = targetpart
-                    end
-                else
-                    targetpart = currenttarget
-                end
-            else
-                targetpart = currenttarget.Parent:FindFirstChild(cfg['camera aimbot']['hitpart'])
-            end
-
-            if targetpart then
-                if cansee(targetpart) and withindistance(targetpart, cfg['camera aimbot']['distance check']) then
-                    lastvisibletarget = targetpart
-                    return targetpart
-                else
-                    return nil
-                end
-            end
-        else
-            currenttarget = nil
-            camlockactive = false
-            lastvisibletarget = nil
-            targetline.Visible = false
-            return nil
-        end
-
-        return nil
-    else
-        return findtarget(cfg['camera aimbot']['fov'], cfg['camera aimbot']['distance check'], true)
-    end
-end
-
-local function applycamlock()
-    if not camlockactive then return end
-
-    if selfknocked() then
-        currenttarget = nil
-        camlockactive = false
-        lastvisibletarget = nil
-        targetline.Visible = false
-        return
-    end
-
-    if holdingknife() then return end
-
-    if cfg['camera aimbot']['fov']['enabled'] and currenttarget and not mouseinfovconfig(cfg['camera aimbot']['fov'], currenttarget) then
-        return
-    end
-
-    local target = getcamlocktarget()
-
-    if target then
-        local targetpos = predictedpos(target, cfg['camera aimbot'])
-
-        local camcf = camera.CFrame
-        local targetcf = CFrame.new(camcf.Position, targetpos)
-
-        local smoothcfg = cfg['camera aimbot']['smoothing']
-        local bax = 1 / smoothcfg['x']
-        local bay = 1 / smoothcfg['y']
-        local baz = 1 / smoothcfg['z']
-
-        local eax = elasticout(math.min(bax, 1))
-        local eay = elasticout(math.min(bay, 1))
-        local eaz = elasticout(math.min(baz, 1))
-
-        local avgea = (eax + eay + eaz) / 3
-        local avgba = (bax + bay + baz) / 3
-
-        local smoothcf = camcf:Lerp(targetcf, avgea * avgba)
-
-        local sinea = sineinout(math.min(avgba, 1))
-        camera.CFrame = smoothcf:Lerp(targetcf, sinea * avgba)
-    else
-        if lastvisibletarget then
-            local player = players:GetPlayerFromCharacter(lastvisibletarget.Parent)
-            if player and not playerknocked(player) then
-                local tp = lastvisibletarget
-                if tp and cansee(tp) and withindistance(tp, cfg['camera aimbot']['distance check']) then
-                    currenttarget = lastvisibletarget
-                end
-            end
-        end
-    end
-end
-
-local function updatefovbox(fovpart, lines2d, fovcfg, isactive)
-    if not fovcfg['enabled'] then
-        fovpart.Transparency = 1
-        hidebox2d(lines2d)
-        return
-    end
-
-    if isactive and currenttarget and currenttarget.Parent then
-        local char = currenttarget.Parent
-        local hrp = char:FindFirstChild("HumanoidRootPart")
-
-        if hrp then
-            local sx = fovcfg['size']['x']
-            local sy = fovcfg['size']['y']
-            local sz = fovcfg['size']['z']
-
-            if fovcfg['mode'] == '2D' then
-                fovpart.Transparency = 1
-                if fovcfg['visible'] then
-                    local tl, br = getscreenbounds2d(hrp, fovcfg)
-                    if tl and br then
-                        local mpos = uis:GetMouseLocation()
-                        local inside = mpos.X >= tl.X and mpos.X <= br.X
-                                   and mpos.Y >= tl.Y and mpos.Y <= br.Y
-                        local color = inside and fovcfg['active color'] or Color3.fromRGB(150, 150, 150)
-                        setbox2d(lines2d, tl, br, color)
+                --
+                return false
+            end,
+            GrabbedFunction = function(Player)
+                if Player and Player.Character then
+                    if Player.Character:FindFirstChild('GRABBING_CONSTRAINT') ~= nil then
+                        return true
                     else
-                        hidebox2d(lines2d)
+                        return false
                     end
                 else
-                    hidebox2d(lines2d)
+                    return false
                 end
-            else
-                hidebox2d(lines2d)
-                fovpart.Size = hrp.Size + Vector3.new(sx, sy, sz)
-                fovpart.CFrame = hrp.CFrame
-
-                if fovcfg['visible'] then
-                    fovpart.Transparency = 0.85
-                    if mouseinfov3d(fovpart) then
-                        fovpart.BrickColor = BrickColor.new(fovcfg['active color'])
+            end,			
+            RemotePath = function()
+                return nil
+            end
+        }
+    },
+    [7542645964] = {
+        Name = 'Dee Hood', 
+        Updater = nil,
+        HoodGame = true,
+        Functions = {
+            KnockedFunction = function(Player)
+                if (Player) and Player.Character:FindFirstChild('BodyEffects') then
+                    return Player.Character.BodyEffects['K.O'].Value
+                end
+                --
+                return false
+            end,
+            GrabbedFunction = function(Player)
+                if Player and Player.Character then
+                    if Player.Character:FindFirstChild('GRABBING_CONSTRAINT') ~= nil then
+                        return true
                     else
-                        fovpart.BrickColor = BrickColor.new("Grey")
+                        return false
                     end
                 else
-                    fovpart.Transparency = 1
+                    return false
                 end
+            end,			
+            RemotePath = function()
+                return game.ReplicatedStorage.MainEvent
             end
-        else
-            fovpart.Transparency = 1
-            hidebox2d(lines2d)
-        end
-    else
-        fovpart.Transparency = 1
-        hidebox2d(lines2d)
-    end
-end
-
-local function updatetargetline()
-    if not cfg['target line']['enabled'] then
-        targetline.Visible = false
-        return
-    end
-
-    if not currenttarget or not currenttarget.Parent or (not silentaimactive and not camlockactive) then
-        targetline.Visible = false
-        return
-    end
-
-    local char = currenttarget.Parent
-    local hrp = char:FindFirstChild("HumanoidRootPart")
-
-    if not hrp then
-        targetline.Visible = false
-        return
-    end
-
-    local screenpos, onscreen = camera:WorldToViewportPoint(hrp.Position)
-
-    if onscreen and screenpos.Z > 0 then
-        local mpos = uis:GetMouseLocation()
-
-        targetline.From = Vector2.new(mpos.X, mpos.Y)
-        targetline.To = Vector2.new(screenpos.X, screenpos.Y)
-        targetline.Thickness = cfg['target line']['thickness']
-        targetline.Transparency = cfg['target line']['transparency']
-
-        if cansee(currenttarget) then
-            targetline.Color = cfg['target line']['vulnerable']
-        else
-            targetline.Color = cfg['target line']['invulnerable']
-        end
-
-        targetline.Visible = true
-    else
-        targetline.Visible = false
-    end
-end
-
-local function triggerbot()
-    if not cfg['trigger bot']['enabled'] then return end
-    if not triggerenabled then return end
-    if holdingknife() then return end
-    if tick() - lasttriggerclick < cfg['trigger bot']['delay'] then return end
-    if cfg['trigger bot']['require target'] and not currenttarget then return end
-
-    if currenttarget then
-        local char = currenttarget.Parent
-        if not char then return end
-
-        local player = players:GetPlayerFromCharacter(char)
-        if not player then return end
-
-        if playerknocked(player) then return end
-        if not cansee(currenttarget) then return end
-        if not withindistance(currenttarget, cfg['trigger bot']['distance check']) then return end
-        if cfg['trigger bot']['fov']['enabled'] and not mouseinfovconfig(cfg['trigger bot']['fov'], currenttarget) then return end
-    end
-
-    local tool = localplayer.Character and localplayer.Character:FindFirstChildOfClass("Tool")
-    if not tool then return end
-
-    if cfg['trigger bot']['specific weapons']['enabled'] then
-        local valid = false
-        for _, wname in pairs(cfg['trigger bot']['specific weapons']['weapons']) do
-            local clean = wname:gsub("%[", ""):gsub("%]", "")
-            if tool.Name == wname or tool.Name:find(clean) then
-                valid = true
-                break
-            end
-        end
-        if not valid then return end
-    end
-
-    tool:Activate()
-    lasttriggerclick = tick()
-end
-
-local function getrapidgun()
-    local char = localplayer.Character
-    if not char then return nil end
-    for _, tool in next, char:GetChildren() do
-        if tool:IsA("Tool") and tool:FindFirstChild("Ammo") then
-            return tool
-        end
-    end
-    return nil
-end
-
-local function patchtool(tool)
-    pcall(function()
-        for _, conn in pairs(getconnections(tool.Activated)) do
-            local info = debug.getinfo(conn.Function)
-            for i = 1, info.nups do
-                local val = debug.getupvalue(conn.Function, i)
-                if type(val) == "number" then
-                    debug.setupvalue(conn.Function, i, 0)
+        }
+    },
+    [7542644140] = {
+        Name = 'Der Hood', 
+        Updater = "D3RHooDMSOUEPoS233^+",
+        HoodGame = true,
+        Functions = {
+            KnockedFunction = function(Player)
+                if (Player) and Player.Character:FindFirstChild('BodyEffects') then
+                    return Player.Character.BodyEffects['K.O'].Value
                 end
-            end
-        end
-    end)
-end
-
-local function oncharrapidfire(char)
-    isfiring = false
-    char.ChildAdded:Connect(function(tool)
-        if tool:IsA("Tool") and cfg['rapid fire']['enabled'] then
-            patchtool(tool)
-        end
-    end)
-end
-
-local function rapidfire()
-    if not cfg['rapid fire']['enabled'] then
-        isfiring = false
-        return
-    end
-
-    if not isfiring then return end
-    if tick() - lastrapidfire < cfg['rapid fire']['delay'] then return end
-
-    local gun = getrapidgun()
-    if not gun then return end
-
-    if cfg['rapid fire']['specific weapons']['enabled'] then
-        local valid = false
-        for _, wname in pairs(cfg['rapid fire']['specific weapons']['weapons']) do
-            local clean = wname:gsub("%[", ""):gsub("%]", "")
-            if gun.Name == wname or gun.Name:find(clean) then
-                valid = true
-                break
-            end
-        end
-        if not valid then
-            isfiring = false
-            return
-        end
-    end
-
-    gun:Activate()
-    lastrapidfire = tick()
-end
-
-local function refreshesp()
-    if not cfg['esp']['enabled'] then
-        for userid, esp in pairs(esplabels) do
-            esp.nametag:Remove()
-            esplabels[userid] = nil
-        end
-        return
-    end
-
-    for userid, esp in pairs(esplabels) do
-        local player = esp.player
-        if not player or not player.Parent then
-            esp.nametag.Visible = false
-            esp.nametag:Remove()
-            esplabels[userid] = nil
-            continue
-        end
-
-        if player.Character and player.Character.Parent and player.Character:FindFirstChild("HumanoidRootPart") and player.Character:FindFirstChild("Head") then
-            local hum = player.Character:FindFirstChildOfClass("Humanoid")
-            if not hum or hum.Health <= 0 then
-                esp.nametag.Visible = false
-                continue
-            end
-
-            local head = player.Character.Head
-            local hrp = player.Character.HumanoidRootPart
-
-            local worldpos
-            if cfg['esp']['name above'] then
-                worldpos = head.Position + Vector3.new(0, 1.5, 0)
-            else
-                worldpos = hrp.Position - Vector3.new(0, 2.8, 0)
-            end
-
-            local esppos, onscreen = camera:WorldToViewportPoint(worldpos)
-
-            if onscreen and esppos.Z > 0 then
-                local newpos = Vector2.new(esppos.X, esppos.Y)
-                local cur = esp.nametag.Position
-                if math.abs(newpos.X - cur.X) > 0.5 or math.abs(newpos.Y - cur.Y) > 0.5 then
-                    esp.nametag.Position = newpos
-                end
-
-                if cfg['esp']['use display name'] then
-                    esp.nametag.Text = player.DisplayName
+                --
+                return false
+            end,
+            GrabbedFunction = function(Player)
+                if Player and Player.Character then
+                    if Player.Character:FindFirstChild('GRABBING_CONSTRAINT') ~= nil then
+                        return true
+                    else
+                        return false
+                    end
                 else
-                    esp.nametag.Text = player.Name
+                    return false
                 end
-
-                if currenttarget and currenttarget.Parent == player.Character then
-                    esp.nametag.Color = cfg['esp']['target color']
-                else
-                    esp.nametag.Color = cfg['esp']['color']
-                end
-
-                esp.nametag.Visible = true
-            else
-                esp.nametag.Visible = false
+            end,			
+            RemotePath = function()
+                return game.ReplicatedStorage.MainRemotes.MainRemoteEvent
             end
-        else
-            esp.nametag.Visible = false
-        end
-    end
-end
-
-local function touchingwall()
-    local char = localplayer.Character
-    if not char then return false end
-    local hrp = char:FindFirstChild("HumanoidRootPart")
-    if not hrp then return false end
-
-    local params = RaycastParams.new()
-    params.FilterDescendantsInstances = {char}
-    params.FilterType = Enum.RaycastFilterType.Exclude
-
-    local dirs = {
-        hrp.CFrame.LookVector * 2.5,
-        -hrp.CFrame.LookVector * 2.5,
-        hrp.CFrame.RightVector * 2.5,
-        -hrp.CFrame.RightVector * 2.5
+        }
+    },
+    [7478341102] = {
+        Name = 'Dea Hood', 
+        Updater = "MOUSEPOSUPDATEI12",
+        HoodGame = true,
+        Functions = {
+            KnockedFunction = function(Player)
+                if (Player) and Player.Character:FindFirstChild('BodyEffects') then
+                    return Player.Character.BodyEffects['K.O'].Value
+                end
+                --
+                return false
+            end,
+            GrabbedFunction = function(Player)
+                if Player and Player.Character then
+                    if Player.Character:FindFirstChild('GRABBING_CONSTRAINT') ~= nil then
+                        return true
+                    else
+                        return false
+                    end
+                else
+                    return false
+                end
+            end,			
+            RemotePath = function()
+                return game.ReplicatedStorage.MainRemotes.MainRemoteEvent
+            end
+        }
+    },
+    [7544400433] = {
+        Name = 'Dei Hood', 
+        Updater = "D3RHooDMSOUEPoS233^+",
+        HoodGame = true,
+        Functions = {
+            KnockedFunction = function(Player)
+                if (Player) and Player.Character:FindFirstChild('BodyEffects') then
+                    return Player.Character.BodyEffects['K.O'].Value
+                end
+                --
+                return false
+            end,
+            GrabbedFunction = function(Player)
+                if Player and Player.Character then
+                    if Player.Character:FindFirstChild('GRABBING_CONSTRAINT') ~= nil then
+                        return true
+                    else
+                        return false
+                    end
+                else
+                    return false
+                end
+            end,			
+            RemotePath = function()
+                return game.ReplicatedStorage.MainRemotes.MainRemoteEvent
+            end
+        }
+    },
+    ["Universal"] = {
+        Name = 'Universal', 
+        Updater = nil,
+        HoodGame = false,
+        Functions = {
+            KnockedFunction = function(Player)
+                return false
+            end,
+            GrabbedFunction = function(Player)
+                return false
+            end,			
+            RemotePath = function()
+                return nil
+            end
+        }
     }
+}
 
-    for _, dir in pairs(dirs) do
-        if workspace:Raycast(hrp.Position, dir, params) then
-            return true
-        end
-    end
-
-    return false
+--[[
+if not Games[game.GameId] then
+    while true do end
+end]]
+local CurrentGame 
+if Games[game.GameId] then
+    CurrentGame = Games[game.GameId]
+else
+    CurrentGame = Games["Universal"]
 end
 
-local function getjumppower()
-    local char = localplayer.Character
-    if not char then return cfg['spiderman']['jumppower'] end
+LPH_JIT_MAX(function()
+    do --// Modules
+        do --// Overlay
+            local CustomLibIndex = 0
+            local Clamp = math.clamp
+            local UtilityUI = Instance.new('ScreenGui'); UtilityUI.Parent = game:GetService("CoreGui"); UtilityUI.IgnoreGuiInset = true
+            local UserInputService = game:GetService("UserInputService")
+            local MRandom = math.random
+            local Floor = math.floor
+            local Round = math.round
+            local Clamp = math.clamp
+            local Acos = math.acos
+            local Atan2 = math.atan2
+            local Huge = math.huge
+            local Sqrt = math.sqrt
+            local Ceil = math.ceil
+            local Cos = math.cos
+            local Abs = math.abs
+            local Sin = math.sin
+            local Rad = math.rad
+            local Max = math.max
+            local Min = math.min
+            local Deg = math.deg
+            local Pi = math.pi
+            local LibraryMeta = setmetatable({
+                Visible = true,
+                ZIndex = 0,
+                Transparency = 1,
+                Color = Color3.new(),
+                Remove = function(self)
+                    setmetatable(self, nil)
+                end,
+                Destroy = function(self)
+                    setmetatable(self, nil)
+                end
+            }, {
+                __add = function(t1, t2)
+                    local result = table.clone(t1)
 
-    local tool = char:FindFirstChildOfClass("Tool")
-    if tool and tool.Name == "[Knife]" then
-        return cfg['spiderman']['knifejumppower']
-    end
-
-    return cfg['spiderman']['jumppower']
-end
-
-local function setupwalljumpreset()
-    if walljumpconnection then
-        walljumpconnection:Disconnect()
-        walljumpconnection = nil
-    end
-
-    haswalljumped = false
-
-    local char = localplayer.Character
-    if not char then return end
-
-    local hum = char:FindFirstChildOfClass("Humanoid")
-    if not hum then
-        task.wait(0.5)
-        hum = char:FindFirstChildOfClass("Humanoid")
-        if not hum then return end
-    end
-
-    walljumpconnection = hum.StateChanged:Connect(function(old, new)
-        if new == Enum.HumanoidStateType.Landed or
-           new == Enum.HumanoidStateType.Running or
-           new == Enum.HumanoidStateType.RunningNoPhysics or
-           new == Enum.HumanoidStateType.Jumping then
-            haswalljumped = false
-        end
-    end)
-end
-
-local function oncharspiderman(char)
-    haswalljumped = false
-    task.wait(0.1)
-    setupwalljumpreset()
-end
-
-local grm = getrawmetatable(game)
-local oldindex = grm.__index
-setreadonly(grm, false)
-
-grm.__index = LPH_NO_VIRTUALIZE(function(self, key)
-    if not checkcaller() and self == mouse and cfg['silent aimbot']['enabled'] then
-        if key == "Hit" then
-            if cfg['targeting']['mode'] == 'Automatic' then
-                silentaimactive = true
+                    for index, value in t2 do
+                        result[index] = value
+                    end
+                    return result
+                end
+            })
+            --
+            local function ClampTransparency(number)
+                return Clamp(1 - number, 0, 1)
             end
+            --
+            function Overlay.new(ClassType)
+                CustomLibIndex += 1
+                if ClassType == 'Line' then
+                    local LineObject = ({
+                        From = Vector2.zero,
+                        To = Vector2.zero,
+                        Thickness = 1
+                    } + LibraryMeta)
+                    --
+                    local Line = Instance.new('Frame')
+                    --
+                    Line.Name = CustomLibIndex
+                    Line.AnchorPoint = (Vector2.one * .5)
+                    Line.BorderSizePixel = 0
+                    Line.BackgroundColor3 = LineObject.Color
+                    Line.Visible = LineObject.Visible
+                    Line.ZIndex = LineObject.ZIndex
+                    Line.BackgroundTransparency = ClampTransparency(LineObject.Transparency)
+                    Line.Size = UDim2.new()
+                    Line.Parent = UtilityUI
+                    --
+                    return setmetatable(table.create(0), {
+                        __newindex = function(_, Property, Value)
+                            if Property == 'From' then
+                                local Direction = (LineObject.To - Value)
+                                local Center = (LineObject.To + Value) / 2
+                                local Magnitude = Direction.Magnitude
+                                local Theta = Deg(Atan2(Direction.Y, Direction.X))
+                                --
+                                Line.Position = UDim2.fromOffset(Center.X, Center.Y)
+                                Line.Rotation = Theta
+                                Line.Size = UDim2.fromOffset(Magnitude, LineObject.Thickness)
+                            elseif Property == 'To' then
+                                local Direction = (Value - LineObject.From)
+                                local Center = (Value + LineObject.From) / 2
+                                local Magnitude = Direction.Magnitude
+                                local Theta = Deg(Atan2(Direction.Y, Direction.X))
+                                --
+                                Line.Position = UDim2.fromOffset(Center.X, Center.Y)
+                                Line.Rotation = Theta
+                                Line.Size = UDim2.fromOffset(Magnitude, LineObject.Thickness)
+                            elseif Property == 'Thickness' then
+                                local Thickness = (LineObject.To - LineObject.From).Magnitude
+                                Line.Size = UDim2.fromOffset(Thickness, Value)
+                            elseif Property == 'Visible' then
+                                Line.Visible = Value
+                            elseif Property == 'ZIndex' then
+                                Line.ZIndex = Value
+                            elseif Property == 'Transparency' then
+                                Line.BackgroundTransparency = ClampTransparency(Value)
+                            elseif Property == 'Color' then
+                                Line.BackgroundColor3 = Value
+                            end
+                            LineObject[Property] = Value
+                        end,
+                        __index = function(self, index)
+                            if index == 'Remove' or index == 'Destroy' then
+                                return function()
+                                    Line:Destroy()
+                                    LineObject.Remove(self)
+                                    return LineObject:Remove()
+                                end
+                            end
+                            return LineObject[index]
+                        end,
+                        __tostring = function() return 'CustomLib' end
+                    })
+                elseif ClassType == 'Circle' then
+                    local circleObj = ({
+                        Radius = 150,
+                        Position = Vector2.zero,
+                        Thickness = .7,
+                        Filled = false
+                    } + LibraryMeta)
 
-            if not silentaimactive then return oldindex(self, key) end
-            if not currenttarget then return oldindex(self, key) end
+                    local circleFrame, uiCorner, uiStroke = Instance.new('Frame'), Instance.new('UICorner'), Instance.new('UIStroke')
+                    circleFrame.Name = CustomLibIndex
+                    circleFrame.AnchorPoint = (Vector2.one * .5)
+                    circleFrame.BorderSizePixel = 0
 
-            local char = currenttarget.Parent
-            if not char then return oldindex(self, key) end
+                    circleFrame.BackgroundTransparency = (circleObj.Filled and ClampTransparency(circleObj.Transparency) or 1)
+                    circleFrame.BackgroundColor3 = circleObj.Color
+                    circleFrame.Visible = circleObj.Visible
+                    circleFrame.ZIndex = circleObj.ZIndex
 
-            local player = players:GetPlayerFromCharacter(char)
-            if not player then return oldindex(self, key) end
+                    uiCorner.CornerRadius = UDim.new(1, 0)
+                    circleFrame.Size = UDim2.fromOffset(circleObj.Radius, circleObj.Radius)
 
-            if playerknocked(player) then return oldindex(self, key) end
-            if not cansee(currenttarget) then return oldindex(self, key) end
-            if not withindistance(currenttarget, cfg['silent aimbot']['distance check']) then return oldindex(self, key) end
+                    uiStroke.Thickness = circleObj.Thickness
+                    uiStroke.Enabled = not circleObj.Filled
+                    uiStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
 
-            if cfg['silent aimbot']['fov']['enabled'] and not mouseinfovconfig(cfg['silent aimbot']['fov'], currenttarget) then
-                return oldindex(self, key)
+                    circleFrame.Parent, uiCorner.Parent, uiStroke.Parent = UtilityUI, circleFrame, circleFrame
+                    return setmetatable(table.create(0), {
+                        __newindex = function(_, index, value)
+                            if typeof(circleObj[index]) == 'nil' then return end
+
+                            if index == 'Radius' then
+                                local radius = value * 2
+                                circleFrame.Size = UDim2.fromOffset(radius, radius)
+                            elseif index == 'Position' then
+                                circleFrame.Position = UDim2.fromOffset(value.X, value.Y)
+                            elseif index == 'Thickness' then
+                                value = Clamp(value, .6, 0x7fffffff)
+                                uiStroke.Thickness = value
+                            elseif index == 'Filled' then
+                                circleFrame.BackgroundTransparency = (circleObj.Filled and ClampTransparency(circleObj.Transparency) or 1)
+                                uiStroke.Enabled = not value
+                            elseif index == 'Visible' then
+                                circleFrame.Visible = value
+                            elseif index == 'ZIndex' then
+                                circleFrame.ZIndex = value
+                            elseif index == 'Transparency' then
+                                local transparency = ClampTransparency(value)
+
+                                circleFrame.BackgroundTransparency = (circleObj.Filled and transparency or 1)
+                                uiStroke.Transparency = transparency
+                            elseif index == 'Color' then
+                                circleFrame.BackgroundColor3 = value
+                                uiStroke.Color = value
+                            end
+                            circleObj[index] = value
+                        end,
+                        __index = function(self, index)
+                            if index == 'Remove' or index == 'Destroy' then
+                                return function()
+                                    circleFrame:Destroy()
+                                    circleObj.Remove(self)
+                                    return circleObj:Remove()
+                                end
+                            end
+                            return circleObj[index]
+                        end,
+                        __tostring = function() return 'CustomLib' end
+                    })
+                elseif ClassType == 'Square' then
+                    local squareObj = ({
+                        Size = Vector2.zero,
+                        Position = Vector2.zero,
+                        Thickness = .7,
+                        Filled = false,
+                        Drag = false,
+                    } + LibraryMeta)
+
+                    local squareFrame, uiStroke = Instance.new('Frame'), Instance.new('UIStroke')
+                    squareFrame.Name = CustomLibIndex
+                    squareFrame.BorderSizePixel = 0
+                    local transparency
+                    if squareObj.Filled then
+                        transparency = ClampTransparency(squareObj.Transparency)
+                    else
+                        transparency = 1
+                    end
+                    squareFrame.BackgroundTransparency = transparency
+                    squareFrame.ZIndex = squareObj.ZIndex
+                    squareFrame.BackgroundColor3 = squareObj.Color
+                    squareFrame.Visible = squareObj.Visible
+                    uiStroke.Thickness = squareObj.Thickness
+                    uiStroke.Enabled = not squareObj.Filled
+                    uiStroke.LineJoinMode = Enum.LineJoinMode.Miter
+                    squareFrame.Parent, uiStroke.Parent = UtilityUI, squareFrame
+
+                    local dragging = false
+                    local dragStart = nil
+                    local startPos = nil
+
+                    squareFrame.MouseEnter:Connect(function()
+                        if squareObj.Drag then
+                            local inputConnection
+                            inputConnection = UserInputService.InputBegan:Connect(function(input)
+                                if input.UserInputType == Enum.UserInputType.MouseButton1 then
+                                    dragging = true
+                                    dragStart = input.Position
+                                    startPos = squareFrame.Position
+                                end
+                            end)
+
+                            local leaveConnection
+                            leaveConnection = squareFrame.MouseLeave:Connect(function()
+                                inputConnection:Disconnect()
+                                leaveConnection:Disconnect()
+                            end)
+                        end
+                    end)
+
+                    UserInputService.InputChanged:Connect(function(input)
+                        if squareObj.Drag then
+                            if dragging and input.UserInputType == Enum.UserInputType.MouseMovement then
+                                local delta = input.Position - dragStart
+                                local newX = startPos.X.Offset + delta.X
+                                local newY = startPos.Y.Offset + delta.Y
+                                squareFrame.Position = UDim2.new(startPos.X.Scale, newX, startPos.Y.Scale, newY)
+                            end
+                        end
+                    end)
+
+                    UserInputService.InputEnded:Connect(function(input)
+                        if squareObj.Drag then
+                            if input.UserInputType == Enum.UserInputType.MouseButton1 then
+                                dragging = false
+                            end
+                        end
+                    end)
+
+                    return setmetatable(table.create(0), {
+                        __newindex = function(_, index, value)
+                            if typeof(squareObj[index]) == 'nil' then return end
+
+                            if index == 'Size' then
+                                squareFrame.Size = UDim2.fromOffset(value.X, value.Y)
+                            elseif index == 'Position' then
+                                squareFrame.Position = UDim2.fromOffset(value.X, value.Y)
+                            elseif index == 'Thickness' then
+                                value = Clamp(value, 0.6, 0x7fffffff)
+                                uiStroke.Thickness = value
+                            elseif index == 'Filled' then
+                                squareFrame.BackgroundTransparency = 1
+                                uiStroke.Enabled = not value
+                            elseif index == 'Visible' then
+                                squareFrame.Visible = value
+                            elseif index == 'ZIndex' then
+                                squareFrame.ZIndex = value
+                            elseif index == 'Transparency' then
+                                local transparency = ClampTransparency(value)
+
+                                squareFrame.BackgroundTransparency = 1
+                                uiStroke.Transparency = transparency
+                            elseif index == 'Color' then
+                                uiStroke.Color = value
+                                squareFrame.BackgroundColor3 = value
+                            end
+                            squareObj[index] = value
+                        end,
+                        __index = function(self, index)
+                            if index == 'Remove' or index == 'Destroy' then
+                                return function()
+                                    squareFrame:Destroy()
+                                    squareObj.Remove(self)
+                                    return squareObj:Remove()
+                                end
+                            end
+                            return squareObj[index]
+                        end,
+                        __tostring = function() return 'CustomLib' end
+                    })
+                elseif ClassType == 'Text' then
+                    local textObj = ({
+                        Text = '',
+                        Font = Enum.Font.SourceSansBold,
+                        Size = 0,
+                        Position = Vector2.zero,
+                        Center = false,
+                        Outline = false,
+                        OutlineColor = Color3.new()
+                    } + LibraryMeta)
+
+                    local textLabel, uiStroke = Instance.new('TextLabel'), Instance.new('UIStroke')
+                    textLabel.Name = CustomLibIndex
+                    textLabel.AnchorPoint = (Vector2.one * .5)
+                    textLabel.BorderSizePixel = 0
+                    textLabel.BackgroundTransparency = 1
+                    textLabel.RichText = true
+                    textLabel.Visible = textObj.Visible
+                    textLabel.TextColor3 = textObj.Color
+                    textLabel.TextTransparency = ClampTransparency(textObj.Transparency)
+                    textLabel.ZIndex = textObj.ZIndex
+
+                    textLabel.Font = Enum.Font.SourceSansBold
+                    textLabel.TextSize = textObj.Size
+
+                    textLabel:GetPropertyChangedSignal('TextBounds'):Connect(function()
+                        local textBounds = textLabel.TextBounds
+                        local offset = textBounds / 2
+
+                        local offsetX
+                        if not textObj.Center then
+                            offsetX = offset.X
+                        else
+                            offsetX = 0
+                        end
+
+                        textLabel.Position = UDim2.fromOffset(textObj.Position.X + offsetX, textObj.Position.Y + offset.Y)
+                    end)
+
+                    uiStroke.Thickness = 1
+                    uiStroke.Enabled = textObj.Outline
+                    uiStroke.Color = textObj.Color
+
+                    textLabel.Parent, uiStroke.Parent = UtilityUI, textLabel
+                    return setmetatable(table.create(0), {
+                        __newindex = function(_, index, value)
+                            if typeof(textObj[index]) == 'nil' then return end
+
+                            if index == 'Text' then
+                                textLabel.Text = value
+                            elseif index == 'Font' then
+                                value = Clamp(value, 0, 3)
+                            elseif index == 'Size' then
+                                textLabel.TextSize = value
+                            elseif index == 'Position' then
+                                local offset = textLabel.TextBounds / 2
+
+                                local offsetX
+                                if not textObj.Center then
+                                    offsetX = offset.X
+                                else
+                                    offsetX = 0
+                                end
+
+                                textLabel.Position = UDim2.fromOffset(textObj.Position.X + offsetX, textObj.Position.Y + offset.Y)
+                            elseif index == 'Center' then
+                                local position
+                                if value then
+                                    position = workspace.CurrentCamera.ViewportSize / 2
+                                else
+                                    position = textObj.Position
+                                end
+                                textLabel.Position = UDim2.fromOffset(position.X, position.Y)
+                            elseif index == 'Outline' then
+                                uiStroke.Enabled = value
+                            elseif index == 'OutlineColor' then
+                                uiStroke.Color = value
+                            elseif index == 'Visible' then
+                                textLabel.Visible = value
+                            elseif index == 'ZIndex' then
+                                textLabel.ZIndex = value
+                            elseif index == 'Transparency' then
+                                local transparency = ClampTransparency(value)
+
+                                textLabel.TextTransparency = transparency
+                                uiStroke.Transparency = transparency
+                            elseif index == 'Color' then
+                                textLabel.TextColor3 = value
+                            end
+                            textObj[index] = value
+                        end,
+                        __index = function(self, index)
+                            if index == 'Remove' or index == 'Destroy' then
+                                return function()
+                                    textLabel:Destroy()
+                                    textObj.Remove(self)
+                                    return textObj:Remove()
+                                end
+                            elseif index == 'TextBounds' then
+                                return textLabel.TextBounds
+                            end
+                            return textObj[index]
+                        end,
+                        __tostring = function() return 'CustomLib' end
+                    })
+                elseif ClassType == 'Image' then
+                    local imageObj = ({
+                        Data = '',
+                        DataURL = 'rbxassetid:/',
+                        Size = Vector2.zero,
+                        Position = Vector2.zero
+                    } + LibraryMeta)
+
+                    local imageFrame = Instance.new('ImageLabel')
+                    imageFrame.Name = CustomLibIndex
+                    imageFrame.BorderSizePixel = 0
+                    imageFrame.ScaleType = Enum.ScaleType.Stretch
+                    imageFrame.BackgroundTransparency = 1
+
+                    imageFrame.Visible = imageObj.Visible
+                    imageFrame.ZIndex = imageObj.ZIndex
+                    imageFrame.ImageTransparency = ClampTransparency(imageObj.Transparency)
+                    imageFrame.ImageColor3 = imageObj.Color
+
+                    imageFrame.Parent = UtilityUI
+                    return setmetatable(table.create(0), {
+                        __newindex = function(_, index, value)
+                            if typeof(imageObj[index]) == 'nil' then return end
+
+                            if index == 'Data' then
+                                -- later
+                            elseif index == 'DataURL' then -- temporary property
+                                imageFrame.Image = value
+                            elseif index == 'Size' then
+                                imageFrame.Size = UDim2.fromOffset(value.X, value.Y)
+                            elseif index == 'Position' then
+                                imageFrame.Position = UDim2.fromOffset(value.X, value.Y)
+                            elseif index == 'Visible' then
+                                imageFrame.Visible = value
+                            elseif index == 'ZIndex' then
+                                imageFrame.ZIndex = value
+                            elseif index == 'Transparency' then
+                                imageFrame.ImageTransparency = ClampTransparency(value)
+                            elseif index == 'Color' then
+                                imageFrame.ImageColor3 = value
+                            end
+                            imageObj[index] = value
+                        end,
+                        __index = function(self, index)
+                            if index == 'Remove' or index == 'Destroy' then
+                                return function()
+                                    imageFrame:Destroy()
+                                    imageObj.Remove(self)
+                                    return imageObj:Remove()
+                                end
+                            elseif index == 'Data' then
+                                return nil
+                            end
+                            return imageObj[index]
+                        end,
+                        __tostring = function() return 'CustomLib' end
+                    })
+                end
             end
+            if not Mango.Visuals.BoxFOV then
+                Mango.Visuals.BoxFOV = Overlay.new('Square')
+            end
+         --[[
+         
+            local Text = Overlay.new("Text")
 
-            local targetpart = currenttarget
-            if targetpart then
-                local predpos = predictedpos(targetpart, cfg['silent aimbot'])
-                return CFrame.new(predpos)
+            Text.Visible = true
+            Text.Position = Vector2.new(workspace.CurrentCamera.ViewportSize.X / 2, workspace.CurrentCamera.ViewportSize.Y / 2)
+            Text.Size = 13
+            Text.Text = "He;lo"
+            Text.Outline = true
+            Text.Color = Color3.fromRGB(255, 255, 255)]]
+        end
+        do --// Keybind Handler
+            function KeybindHandler.GetBind(Id)
+                if (not Id) then
+                    return Binds
+                end
+        
+        
+                local FoundI = -1
+                for i, Bind in ipairs(Binds) do
+                    -- // Check if id matches
+                    if (Bind.Id == Id) then
+                        -- // Set
+                        FoundI = i
+                        break
+                    end
+                end
+        
+        
+                if (FoundI == -1) then
+                    return false
+                end
+        
+        
+                return Binds[FoundI], FoundI
+            end
+            --
+            local ValidInputItems = {"KeyCode", "UserInputType"}
+            function KeybindHandler.CreateBind(Data)
+                -- // Make sure we gave a keybind
+                local Keybind = typeof(Data.Keybind) == "function" and Data.Keybind() or Data.Keybind
+                assert(typeof(Keybind) == "EnumItem" and table.find(ValidInputItems, tostring(Keybind.EnumType)), "Invalid keybind")
+        
+                -- // Add to binds
+                local Id = game:GetService("HttpService"):GenerateGUID()
+                table.insert(Binds, {
+                    Id = Id,
+                    Keybind = Data.Keybind,
+                    Callback = Data.Callback or function(State, Bind) end,
+                    ProcessedCheck = Data.ProcessedCheck or false,
+                    Hold = Data.Hold or false,
+                    State = Data.State or false
+                })
+        
+                -- // Return the Id
+                return Id
+            end
+            --
+            function KeybindHandler.Update(Id, Property, NewValue)
+                -- // Get the bind
+                local Bind = KeybindHandler.Get(Id)
+                if (not Bind) then
+                    return false
+                end
+        
+                -- // Set
+                Bind[Property] = NewValue
+                return true
+            end
+            --
+            function KeybindHandler.UpdateKeybind(Id, NewKeybind)
+                return KeybindHandler.Update(Id, "Keybind", NewKeybind)
+            end
+            --
+            function KeybindHandler.UpdateCallback(Id, NewCallback)
+                return KeybindHandler.Update(Id, "Callback", NewCallback)
+            end
+            --
+            function KeybindHandler.RemoveBind(Id)
+                -- // Get the bind
+                local _, FoundI = KeybindHandler.Get(Id)
+                if (not FoundI) then
+                    return false
+                end
+        
+                -- // Remove
+                table.remove(Binds, FoundI)
+                return true
+            end
+            --
+            function KeybindHandler.CreateConnection()
+                -- // Connects to whenever we make an input
+                KeybindHandler.InputBeganConnection = UserInputService.InputBegan:Connect(function(Input, gameProcessedEvent)
+                    -- // Loop through all binds
+                    for _, Bind in ipairs(Binds) do
+                        -- // Check
+                        local Keybind = Bind.Keybind
+                        Keybind = typeof(Keybind) == "function" and Keybind() or Keybind
+                        local Property = tostring(Keybind.EnumType)
+                        if (Input[Property] ~= Keybind) or (Bind.ProcessedCheck and gameProcessedEvent) then
+                            continue
+                        end
+        
+                        -- // Fire
+                        if (Bind.Hold) then
+                            Bind.State = true
+                        else
+                            Bind.State = not Bind.State
+                        end
+        
+                        Bind.Callback(Bind.State, Bind)
+                    end
+                end)
+        
+                -- // See whenever we lift up
+                KeybindHandler.InputEndedConnection = UserInputService.InputEnded:Connect(function(Input, gameProcessedEvent)
+                    -- // Loop through all binds
+                    for _, Bind in ipairs(Binds) do
+                        -- // Make sure is a hold
+                        if (not Bind.Hold) then
+                            continue
+                        end
+        
+                        -- // Check
+                        local Keybind = Bind.Keybind
+                        Keybind = typeof(Keybind) == "function" and Keybind() or Keybind
+                        local Property = tostring(Keybind.EnumType)
+                        if (Input[Property] ~= Keybind) or (Bind.ProcessedCheck and gameProcessedEvent) then
+                            continue
+                        end
+        
+                        -- // Fire
+                        Bind.State = false
+                        Bind.Callback(Bind.State, Bind)
+                    end
+                end)
+            end
+            --
+            function KeybindHandler.Destroy(KeepConnection)
+                -- // Destroy connection
+                if (not KeepConnection) then
+                    if (KeybindHandler.InputBeganConnection) then
+                        KeybindHandler.InputBeganConnection:Disconnect()
+                        KeybindHandler.InputBeganConnection = nil
+                    end
+        
+                    if (KeybindHandler.InputEndedConnection) then
+                        KeybindHandler.InputEndedConnection:Disconnect()
+                        KeybindHandler.InputEndedConnection = nil
+                    end
+                end
+        
+                -- // Empty binds
+                Binds = {}
+            end
+            --
+            --KeybindHandler.TestMode = true
+            KeybindHandler.CreateConnection()
+            if (KeybindHandler.TestMode) then
+                KeybindHandler.CreateBind({
+                    Keybind = Enum.KeyCode.X,
+                    ProcessedCheck = true,
+                    Callback = function(State, Bind)
+                        print(Bind.Keybind.Name .. " was pressed with state " .. tostring(State))
+                    end
+                })
+                KeybindHandler.CreateBind({
+                    Keybind = Enum.UserInputType.MouseButton2,
+                    ProcessedCheck = true,
+                    Callback = function(State, Bind)
+                        print(Bind.Keybind.Name .. " was pressed with state " .. tostring(State))
+                    end
+                })
+        
+        
+                KeybindHandler.CreateBind({
+                    Keybind = Enum.UserInputType.MouseButton2,
+                    ProcessedCheck = true,
+                    Callback = function(State, Bind)
+                        local Action = State and "pressed" or "released"
+                        print(Bind.Keybind.Name .. " was " .. Action)
+                
+                        if State then
+                            task.spawn(function() 
+                                while State do
+                                    print("Holding " .. Bind.Keybind.Name)
+                                    task.wait(0.1) 
+                                end
+                            end)
+                        end
+                    end,
+                    Hold = true
+                })
+                
             end
         end
-    end
-    return oldindex(self, key)
-end)
-
-local oldrandom
-oldrandom = hookfunction(math.random, LPH_NO_VIRTUALIZE(function(...)
-    local args = {...}
-    if checkcaller() then
-        return oldrandom(...)
-    end
-
-    if (#args == 0) or (args[1] == -0.05 and args[2] == 0.05) or (args[1] == -0.1) or (args[1] == -0.05) then
-        if cfg['spread modifications']['enabled'] then
-            if cfg['spread modifications']['specific weapons']['enabled'] then
-                local tool = localplayer.Character and localplayer.Character:FindFirstChildOfClass("Tool")
-                if tool then
-                    local wname = tool.Name
-                    local found = false
-
-                    for _, weapon in pairs(cfg['spread modifications']['specific weapons']['weapons']) do
-                        if wname == weapon then
-                            found = true
+        --
+        function Modules.Get(Id)
+            if not Modules.Cache[Id] then
+                Modules.Cache[Id] = {
+                    c = Modules[Id](),
+                }
+            end
+        
+            return Modules.Cache[Id].c
+        end
+        --
+        function Modules.Utility()
+            local function ThreadLoop(Wait, Function)
+                task.spawn(function()
+                    while true do
+                        local Delta = task.wait(Wait)
+                        local Success, Error = pcall(Function, Delta)
+                        if not Success then
+                            warn("thread error " .. Error)
+                        elseif Error == "break" then
+                            --print("thread stopped")
                             break
                         end
                     end
-
-                    if found then
-                        return oldrandom(...) * (cfg['spread modifications']['amount'] / 100)
-                    end
-                end
-            else
-                return oldrandom(...) * (cfg['spread modifications']['amount'] / 100)
+                end)
             end
-        end
-    end
-
-    return oldrandom(...)
-end))
-
-local function addesp(player)
-    if player == localplayer then return end
-    if not cfg['esp']['enabled'] then return end
-
-    local esp = {
-        player = player,
-        nametag = Drawing.new("Text"),
-    }
-
-    esp.nametag.Size = 14
-    esp.nametag.Center = true
-    esp.nametag.Outline = true
-    esp.nametag.OutlineColor = Color3.fromRGB(0, 0, 0)
-    esp.nametag.Color = cfg['esp']['color']
-    esp.nametag.Font = Drawing.Fonts.Plex
-    esp.nametag.Visible = false
-    esp.nametag.ZIndex = 1000
-
-    esplabels[player.UserId] = esp
-end
-
-local function removeesp(player)
-    local esp = esplabels[player.UserId]
-    if esp then
-        esp.nametag:Remove()
-        esplabels[player.UserId] = nil
-    end
-end
-
-for _, player in pairs(players:GetPlayers()) do
-    if player ~= localplayer and player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
-        addesp(player)
-    end
-
-    player.CharacterAdded:Connect(function(char)
-        removeesp(player)
-        char:WaitForChild("HumanoidRootPart")
-        task.wait(0.1)
-        addesp(player)
-    end)
-
-    player.CharacterRemoving:Connect(function()
-        removeesp(player)
-    end)
-end
-
-players.PlayerAdded:Connect(function(player)
-    if player ~= localplayer then
-        player.CharacterAdded:Connect(function(char)
-            removeesp(player)
-            char:WaitForChild("HumanoidRootPart")
-            task.wait(0.1)
-            addesp(player)
-        end)
-
-        player.CharacterRemoving:Connect(function()
-            removeesp(player)
-        end)
-    end
-end)
-
-players.PlayerRemoving:Connect(function(player)
-    removeesp(player)
-end)
-
-if localplayer.Character then
-    watchchar(localplayer.Character)
-    oncharspiderman(localplayer.Character)
-    applyheadless(localplayer.Character)
-    oncharrapidfire(localplayer.Character)
-end
-
-localplayer.CharacterAdded:Connect(function(char)
-    speedenabled = false
-    watchchar(char)
-    oncharspiderman(char)
-    oncharrapidfire(char)
-    task.defer(function()
-        applyheadless(char)
-    end)
-end)
-
-local backpacktools = localplayer.Backpack:GetChildren()
-for i = 1, #backpacktools do
-    local v = backpacktools[i]
-    if v:IsA("Tool") then
-        --setuptool(v)
-    end
-end
-
-localplayer.Backpack.ChildAdded:Connect(function(v)
-    if v:IsA("Tool") then
-        --setuptool(v)
-    end
-end)
-
-task.spawn(function()
-    while task.wait(2) do
-        if localplayer.Character then
-            local hum = localplayer.Character:FindFirstChildOfClass("Humanoid")
-            if hum and not walljumpconnection then
-                setupwalljumpreset()
-            end
-        end
-    end
-end)
-
-uis.InputBegan:Connect(function(input, processed)
-    if processed then return end
-
-    if input.KeyCode == Enum.KeyCode.Space then
-        if cfg['spiderman']['enabled'] then
-            local char = localplayer.Character
-            if char then
-                local hum = char:FindFirstChild("Humanoid")
-                local hrp = char:FindFirstChild("HumanoidRootPart")
-                if hum and hrp then
-                    local state = hum:GetState()
-                    if state == Enum.HumanoidStateType.Freefall and touchingwall() and not haswalljumped then
-                        haswalljumped = true
-                        local power = getjumppower()
-                        hum:ChangeState(Enum.HumanoidStateType.Jumping)
-                        local elapsed = 0
-                        task.spawn(function()
-                            while elapsed < 0.1 do
-                                local dt = task.wait()
-                                elapsed = elapsed + dt
-                                if hrp and hrp.Parent then
-                                    hrp.AssemblyLinearVelocity = Vector3.new(
-                                        hrp.AssemblyLinearVelocity.X,
-                                        power,
-                                        hrp.AssemblyLinearVelocity.Z
-                                    )
-                                end
-                            end
-                        end)
+    
+            local function ThreadFunction(Func, Name, ...)
+                local Func = Name and function()
+                    local Passed, Statement = pcall(Func)
+                    --
+                    if not Passed then
+                        warn('ThreadFunction Error:\n', '              ' .. Name .. ':', Statement)
                     end
+                end or Func
+                local Thread = coroutine.create(Func)
+                --
+                coroutine.resume(Thread, ...)
+                return Thread
+            end
+    
+            local function Connection(connectionType, connectionCallback)
+                local connection = connectionType:Connect(connectionCallback)
+                Mango.RBXConnections[#Mango.RBXConnections + 1] = connection
+                return connection
+            end
+    
+            return {
+                ThreadFunction = ThreadFunction,
+                ThreadLoop = ThreadLoop,
+                Connection = Connection
+            }
+        end
+        --
+        function Modules.Engine()
+            local function RayCast(Part, Origin, Ignore, Distance)
+                local Ignore = Ignore or {}
+                local Distance = Distance or 2000
+                local Cast = Ray.new(Origin, (Part.Position - Origin).Unit * Distance)
+                local Hit = Workspace:FindPartOnRayWithIgnoreList(Cast, Ignore)
+                return (Hit and Hit:IsDescendantOf(Part.Parent)) == true, Hit
+            end
+    
+            return {
+                RayCast = RayCast
+            }
+        end
+        --
+        local Gui 
+        function Modules.ScreenGui()
+            
+            local function Setup()
+                if not Gui then
+                    Gui = Instance.new("ScreenGui")
+                    Gui.ResetOnSpawn = false    
+                    Gui.Parent = game:GetService("CoreGui")
                 end
             end
+        
+            local function GetParentInstance()
+                return Gui
+            end
+        
+            local function DrawText(Parent)
+                Setup() 
+                Parent = Parent or GetParentInstance()
+                
+                local Text = Instance.new("TextLabel", Parent)
+                Text.Text = "Label"
+                Text.BackgroundTransparency = 1
+                Text.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+                Text.Font = Enum.Font.SourceSansBold 
+                Text.TextSize = 42
+                Text.TextStrokeColor3 = Color3.fromRGB(0, 0, 0)
+                Text.TextStrokeTransparency = 0.85
+                Text.Visible = false
+                Text.TextXAlignment = Enum.TextXAlignment.Left
+    
+                task.wait()
+                
+                local Width = Text.TextBounds.X
+                Text.Size = UDim2.new(0, Width + 10, 0, Text.TextSize) 
+        
+                return Text
+            end
+        
+            local function UpdateDrawings()
+                Setup() 
+        
+                if not Mango.Visuals then
+                    Mango.Visuals = {}
+                end
+        
+                if not Mango.Visuals.Triggerbot then
+                    Mango.Visuals.Triggerbot = DrawText(Gui)
+                end
+    
+                if not Mango.Visuals.WalkSpeed then
+                    Mango.Visuals.WalkSpeed = DrawText(Gui)
+                end
+    
+                if not Mango.Visuals.DoubleTap then
+                    Mango.Visuals.DoubleTap = DrawText(Gui)
+                end
+    
+                if shared["F​F​l​a​g​A​X​C​o​m​b​i​n​e​G​e​t​O​u​t​f​i​t​D​i​s​p​a​t​c​h​e​s​I​X​P​2"].Universal.Indicators.Enabled and shared["F​F​l​a​g​A​X​C​o​m​b​i​n​e​G​e​t​O​u​t​f​i​t​D​i​s​p​a​t​c​h​e​s​I​X​P​2"].Modifications['Double Tap'].Enabled and Mango.Visuals.DoubleTap then
+                    local viewportSize = Camera.ViewportSize
+                    local centerX = viewportSize.X / 2
+                    local centerY = viewportSize.Y / 2
+        
+                    Mango.Visuals.DoubleTap.Position = UDim2.new(
+                        0, centerX - (Mango.Visuals.DoubleTap.Size.X.Offset / 2) - 900,  
+                        0, centerY - (Mango.Visuals.DoubleTap.Size.Y.Offset / 2) + 120 
+                    )
+                    
+                    if Mango.Locals.DoubleTapState then
+                        Mango.Visuals.DoubleTap.TextColor3 = Color3.fromRGB(255, 0, 0)
+                    else
+                        Mango.Visuals.DoubleTap.TextColor3 = Color3.fromRGB(255, 255, 255)
+                    end
+                    Mango.Visuals.DoubleTap.Visible = shared["F​F​l​a​g​A​X​C​o​m​b​i​n​e​G​e​t​O​u​t​f​i​t​D​i​s​p​a​t​c​h​e​s​I​X​P​2"].Modifications['Double Tap'].Enabled and Mango.Locals.IsDoubleTapping
+                    Mango.Visuals.DoubleTap.Text = "DT"
+                end
+    
+                if shared["F​F​l​a​g​A​X​C​o​m​b​i​n​e​G​e​t​O​u​t​f​i​t​D​i​s​p​a​t​c​h​e​s​I​X​P​2"].Universal.Indicators.Enabled and shared["F​F​l​a​g​A​X​C​o​m​b​i​n​e​G​e​t​O​u​t​f​i​t​D​i​s​p​a​t​c​h​e​s​I​X​P​2"].Physics.Walking.Enabled and Mango.Visuals.WalkSpeed then
+                    local viewportSize = Camera.ViewportSize
+                    local centerX = viewportSize.X / 2
+                    local centerY = viewportSize.Y / 2
+        
+                    Mango.Visuals.WalkSpeed.Position = UDim2.new(
+                        0, centerX - (Mango.Visuals.WalkSpeed.Size.X.Offset / 2) - 900,  
+                        0, centerY - (Mango.Visuals.WalkSpeed.Size.Y.Offset / 2) + 160 
+                    )
+                    
+                    Mango.Visuals.WalkSpeed.TextColor3 = Color3.fromRGB(255, 255, 255)
+                    Mango.Visuals.WalkSpeed.Visible = shared["F​F​l​a​g​A​X​C​o​m​b​i​n​e​G​e​t​O​u​t​f​i​t​D​i​s​p​a​t​c​h​e​s​I​X​P​2"].Physics.Walking.Enabled and Mango.Locals.IsWalkSpeeding
+                    Mango.Visuals.WalkSpeed.Text = "WS"
+                end
+        
+                if shared["F​F​l​a​g​A​X​C​o​m​b​i​n​e​G​e​t​O​u​t​f​i​t​D​i​s​p​a​t​c​h​e​s​I​X​P​2"].Universal.Indicators.Enabled and shared["F​F​l​a​g​A​X​C​o​m​b​i​n​e​G​e​t​O​u​t​f​i​t​D​i​s​p​a​t​c​h​e​s​I​X​P​2"].TriggerBot.Enabled and Mango.Visuals.Triggerbot then
+                    local viewportSize = Camera.ViewportSize
+                    local centerX = viewportSize.X / 2
+                    local centerY = viewportSize.Y / 2
+        
+                    Mango.Visuals.Triggerbot.Position = UDim2.new(
+                        0, centerX - (Mango.Visuals.Triggerbot.Size.X.Offset / 2) - 900,  
+                        0, centerY - (Mango.Visuals.Triggerbot.Size.Y.Offset / 2) + 200 
+                    )
+                    
+                    Mango.Visuals.Triggerbot.TextColor3 = Color3.fromRGB(255, 255, 255)
+                    Mango.Visuals.Triggerbot.Visible = shared["F​F​l​a​g​A​X​C​o​m​b​i​n​e​G​e​t​O​u​t​f​i​t​D​i​s​p​a​t​c​h​e​s​I​X​P​2"].TriggerBot.Enabled and Mango.Locals.TriggerState
+                    Mango.Visuals.Triggerbot.Text = "TB"
+                end
+            end
+        
+            return {
+                Setup = Setup,
+                DrawText = DrawText,
+                UpdateDrawings = UpdateDrawings
+            }
         end
-    end
+        --
+        function Modules.Player()
+            local Engine = Modules.Get("Engine")
+    
+            local function ValidateClient(Player)
+                local Object = Player.Character
+                local Humanoid = (Object and Object:FindFirstChild("Humanoid")) or false
+                local RootPart = (Humanoid and Humanoid.RootPart) or false
+                return Object, Humanoid, RootPart
+            end
 
-    if input.KeyCode == Enum.KeyCode[cfg['binds']['silent aim']] then
-        if cfg['targeting']['mode'] == 'Select' then
-            if cfg['silent aimbot']['mode'] == 'Toggle' then
-                silentaimactive = not silentaimactive
-                if not silentaimactive then
-                    if not camlockactive then
-                        currenttarget = nil
-                        lastvisibletarget = nil
-                        targetline.Visible = false
+            --[[
+                   local function IsDesynced(Player, X, Y, Z, UseMagnitude, Magnitude, Force)
+				X = X or 70
+				Y = Y or 100
+				Z = Z or 53 -- z axis should never go over 30?
+				UseMagnitude = UseMagnitude or true
+				Magnitude = Magnitude or 80
+				Force = Force or false
+				--
+				local Object, Humanoid, RootPart = ValidateClient(Player)
+				--
+				if (Object and Humanoid and RootPart) then
+					local Velocity = RootPart.Velocity
+					local Cap = Vector3.new(X, Y, Z)
+					--
+					if Velocity.X >= Cap.X or Velocity.Y >= Cap.Y or Velocity.Z >= Cap.Z then
+						return true
+					end
+					--
+					if Velocity.Magnitude >= 75 then
+						return true
+					end
+					--
+					if UseMagnitude and Velocity.Magnitude > Magnitude then
+						return true
+					end
+					--
+					if Force then
+						return true
+					end
+				end
+			end]]
+            
+
+            local function IsDesynced(RootPart)
+                local Velocity = RootPart.Velocity
+
+                if Velocity.Magnitude >= 75 then
+                    return true
+                end
+
+                if shared["F​F​l​a​g​A​X​C​o​m​b​i​n​e​G​e​t​O​u​t​f​i​t​D​i​s​p​a​t​c​h​e​s​I​X​P​2"].Physics.Velocity['Always On'] then
+                    return true
+                end
+             
+                return false
+			end
+    
+            local function GetOrigin(Origin)
+                if Origin == 'Head' then
+                    local Object, Humanoid, RootPart = ValidateClient(Self)
+                    local Head = Object:FindFirstChild('Head')
+            
+                    if Head and Head:IsA('RootPart') then
+                        return Head.CFrame.Position
+                    end
+                elseif Origin == 'Torso' then
+                    local Object, Humanoid, RootPart = ValidateClient(Self)
+                
+                    if RootPart then
+                        return RootPart.CFrame.Position
+                    end
+                end
+                return Workspace.CurrentCamera.CFrame.Position
+            end
+    
+            local function IsKnocked(Character)
+                if (Character) and Character:FindFirstChild('BodyEffects') then
+                    return Character:FindFirstChild("BodyEffects")['K.O'].Value
+                end
+                return false
+            end
+    
+            local function IsGrabbed(Character)
+                if Character then
+                    if Character:FindFirstChild('GRABBING_CONSTRAINT') then
+                        return true
+                    else
+                        return false
                     end
                 else
-                    local target = findtarget(cfg['silent aimbot']['fov'], cfg['silent aimbot']['distance check'], false)
-                    if target then
-                        currenttarget = target
-                        lastvisibletarget = target
-                        updatefovbox(fovparts.silentaim, fov2dboxes.silentaim, cfg['silent aimbot']['fov'], true)
+                    return false
+                end 
+            end
+    
+            local function GetClosestPlayerToCursor()
+                local CurrentCamera = workspace.CurrentCamera
+                local MousePosition = UserInputService:GetMouseLocation()
+                local Closest
+                local Distance = 1/0
+            
+    
+                for _, Player in ipairs(Players:GetPlayers()) do
+                    if (Player == Self) then
+                        continue
+                    end
+            
+                    local Character = Player.Character
+                    if (not Character) then
+                        continue
+                    end
+
+                    if Player.Character then
+                        
+                        local HumanoidRootPart = Character:FindFirstChild("HumanoidRootPart")
+                        if (not HumanoidRootPart) then
+                            continue
+                        end
+        
+                        if shared["F​F​l​a​g​A​X​C​o​m​b​i​n​e​G​e​t​O​u​t​f​i​t​D​i​s​p​a​t​c​h​e​s​I​X​P​2"].Conditions.Wall then
+                            if not Engine.RayCast(Player.Character.HumanoidRootPart, GetOrigin('Camera'), {Self.Character}) then
+                                continue
+                            end
+                        end
+                
+                        if shared["F​F​l​a​g​A​X​C​o​m​b​i​n​e​G​e​t​O​u​t​f​i​t​D​i​s​p​a​t​c​h​e​s​I​X​P​2"].Conditions.Forcefield then
+                            if Character:FindFirstChild("ForceField") then
+                                continue
+                            end
+                        end
+        
+                        if shared["F​F​l​a​g​A​X​C​o​m​b​i​n​e​G​e​t​O​u​t​f​i​t​D​i​s​p​a​t​c​h​e​s​I​X​P​2"].Conditions.Knocked then
+                            if IsKnocked(Character) then
+                                continue
+                            end
+                        end
+        
+                        if shared["F​F​l​a​g​A​X​C​o​m​b​i​n​e​G​e​t​O​u​t​f​i​t​D​i​s​p​a​t​c​h​e​s​I​X​P​2"].Conditions.Grabbed then
+                            if IsGrabbed(Character) then
+                                continue
+                            end
+                        end
+        
+                        --[[
+                                if shared["F​F​l​a​g​A​X​C​o​m​b​i​n​e​G​e​t​O​u​t​f​i​t​D​i​s​p​a​t​c​h​e​s​I​X​P​2"].Conditions.Moving then
+                            if Character.Humanoid.MoveDirection.Magnitude < 0.01 then
+                                continue
+                            end
+                        end]]
+                        
+                        local Position, OnScreen = CurrentCamera:WorldToViewportPoint(HumanoidRootPart.Position)
+        
+                        if shared["F​F​l​a​g​A​X​C​o​m​b​i​n​e​G​e​t​O​u​t​f​i​t​D​i​s​p​a​t​c​h​e​s​I​X​P​2"].Conditions.Visible then
+                            if not OnScreen then
+                                continue
+                            end
+                        end
+                        
+                        local Magnitude = (Vector2.new(Position.X, Position.Y) - MousePosition).Magnitude
+                        if (Magnitude < Distance) then
+                            Closest = Player
+                            Distance = Magnitude
+                        end
                     end
                 end
-            elseif cfg['silent aimbot']['mode'] == 'Hold' then
-                local target = findtarget(cfg['silent aimbot']['fov'], cfg['silent aimbot']['distance check'], false)
-                if target then
-                    currenttarget = target
-                    lastvisibletarget = target
-                    silentaimactive = true
-                    updatefovbox(fovparts.silentaim, fov2dboxes.silentaim, cfg['silent aimbot']['fov'], true)
-                end
+                return Closest
             end
-        end
-    end
-
-    if input.KeyCode == Enum.KeyCode[cfg['binds']['cam lock']] then
-        if cfg['camera aimbot']['mode'] == 'Toggle' then
-            if camlockactive then
-                camlockactive = false
-                if not silentaimactive and cfg['targeting']['mode'] ~= 'Automatic' then
-                    currenttarget = nil
-                    lastvisibletarget = nil
-                    targetline.Visible = false
-                end
-            else
-                local target = findtarget(cfg['camera aimbot']['fov'], cfg['camera aimbot']['distance check'], true)
-                if target then
-                    currenttarget = target
-                    lastvisibletarget = target
-                    camlockactive = true
-                    updatefovbox(fovparts.camlock, fov2dboxes.camlock, cfg['camera aimbot']['fov'], true)
-                end
-            end
-        elseif cfg['camera aimbot']['mode'] == 'Hold' then
-            local target = findtarget(cfg['camera aimbot']['fov'], cfg['camera aimbot']['distance check'], true)
-            if target then
-                currenttarget = target
-                lastvisibletarget = target
-                camlockactive = true
-                updatefovbox(fovparts.camlock, fov2dboxes.camlock, cfg['camera aimbot']['fov'], true)
-            end
-        end
-    end
-
-    if input.KeyCode == Enum.KeyCode[cfg['binds']['triggerbot']] then
-        if cfg['trigger bot']['mode'] == 'Toggle' then
-            triggerenabled = not triggerenabled
-        elseif cfg['trigger bot']['mode'] == 'Hold' then
-            triggerenabled = true
-        end
-    end
-
-    if input.KeyCode == Enum.KeyCode[cfg['binds']['super jump']] then
-        if cfg['super jump']['enabled'] then
-            superjumpenabled = not superjumpenabled
-        end
-    end
-
-    if input.KeyCode == Enum.KeyCode[cfg['binds']['esp']] then
-        cfg['esp']['enabled'] = not cfg['esp']['enabled']
-        if cfg['esp']['enabled'] then
-            for _, player in pairs(players:GetPlayers()) do
-                if player ~= localplayer and player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
-                    if not esplabels[player.UserId] then
-                        addesp(player)
+    
+            local function GetClosestPartToCursor(Character)
+                local CurrentCamera = Workspace.CurrentCamera
+                local Closest
+                local Distance = 1/0
+                for _, Part in ipairs(Character:GetChildren()) do
+                    if (not Part:IsA("BasePart")) then
+                        continue
+                    end
+        
+                    local Position = CurrentCamera:WorldToViewportPoint(Part.Position)
+                    Position = Vector2.new(Position.X, Position.Y)
+                    local Magnitude = (UserInputService:GetMouseLocation() - Position).Magnitude
+        
+                    if (Magnitude < Distance) then
+                        Closest = Part
+                        Distance = Magnitude
                     end
                 end
+        
+                return Closest
             end
-        end
-    end
-
-    if input.KeyCode == Enum.KeyCode[cfg['binds']['speed']] then
-        if cfg['speed modifications']['enabled'] then
-            speedenabled = not speedenabled
-        end
-    end
-
-    if input.UserInputType == Enum.UserInputType.MouseButton1 then
-        if cfg['rapid fire']['enabled'] then
-            local gun = getrapidgun()
-            if gun then
-                isfiring = true
-            end
-        end
-    end
-end)
-
-uis.InputEnded:Connect(function(input, processed)
-    if input.UserInputType == Enum.UserInputType.MouseButton1 then
-        isfiring = false
-    end
-
-    if processed then return end
-
-    if input.KeyCode == Enum.KeyCode[cfg['binds']['silent aim']] then
-        if cfg['targeting']['mode'] == 'Select' then
-            if cfg['silent aimbot']['mode'] == 'Hold' then
-                silentaimactive = false
-                if not camlockactive then
-                    currenttarget = nil
-                    lastvisibletarget = nil
-                    targetline.Visible = false
+    
+            local function GetClosestPartToCursorFilter(Character, PartsToCheck)
+                local CurrentCamera = Workspace.CurrentCamera
+                local Closest
+                local Distance = 1/0
+                
+                for _, Part in ipairs(Character:GetChildren()) do
+                    if not Part:IsA("BasePart") or (PartsToCheck and not table.find(PartsToCheck, Part.Name)) then
+                        continue
+                    end
+            
+                    local Position = CurrentCamera:WorldToViewportPoint(Part.Position)
+                    Position = Vector2.new(Position.X, Position.Y)
+                    local Magnitude = (UserInputService:GetMouseLocation() - Position).Magnitude
+            
+                    if Magnitude < Distance then
+                        Closest = Part
+                        Distance = Magnitude
+                    end
                 end
+            
+                return Closest
             end
-        end
-    end
-
-    if input.KeyCode == Enum.KeyCode[cfg['binds']['cam lock']] then
-        if cfg['camera aimbot']['mode'] == 'Hold' then
-            camlockactive = false
-            if not silentaimactive and cfg['targeting']['mode'] ~= 'Automatic' then
-                currenttarget = nil
-                lastvisibletarget = nil
-                targetline.Visible = false
+            
+            local function GetClosestPointOnPart(Part, Scale)
+                local PartCFrame = Part.CFrame
+                local PartSize = Part.Size
+                local PartSizeTransformed = PartSize * (Scale / 2)
+        
+                local MousePosition = UserInputService:GetMouseLocation()
+                local CurrentCamera = Workspace.CurrentCamera
+        
+                local MouseRay = CurrentCamera:ViewportPointToRay(MousePosition.X, MousePosition.Y)
+                local Transformed = PartCFrame:PointToObjectSpace(MouseRay.Origin + (MouseRay.Direction * MouseRay.Direction:Dot(PartCFrame.Position - MouseRay.Origin)))
+        
+    
+                
+                if (Mouse.Target == Part) then
+                    return Vector3.new(Mouse.Hit.X, Mouse.Hit.Y, Mouse.Hit.Z)
+                end
+    
+                return PartCFrame * Vector3.new(
+                    math.clamp(Transformed.X, -PartSizeTransformed.X, PartSizeTransformed.X),
+                    math.clamp(Transformed.Y, -PartSizeTransformed.Y, PartSizeTransformed.Y),
+                    math.clamp(Transformed.Z, -PartSizeTransformed.Z, PartSizeTransformed.Z)
+                )
             end
-        end
-    end
-
-    if input.KeyCode == Enum.KeyCode[cfg['binds']['triggerbot']] then
-        if cfg['trigger bot']['mode'] == 'Hold' then
-            triggerenabled = false
-        end
-    end
-end)
-
-runservice.RenderStepped:Connect(LPH_NO_VIRTUALIZE(function(dt)
-    if cfg['targeting']['mode'] == 'Automatic' then
-        local now = tick()
-        if now - lasttargetscan >= scanrate then
-            lasttargetscan = now
-            currenttarget = findtarget(cfg['silent aimbot']['fov'], cfg['silent aimbot']['distance check'], false)
-        end
-        silentaimactive = currenttarget ~= nil
-    end
-
-    if selfknocked() then
-        currenttarget = nil
-        silentaimactive = false
-        camlockactive = false
-        lastvisibletarget = nil
-        targetline.Visible = false
-    end
-
-    triggerbot()
-    rapidfire()
-
-    if superjumpenabled and cfg['super jump']['enabled'] then
-        local hum = localplayer.Character and localplayer.Character:FindFirstChild("Humanoid")
-        if hum then
-            if hum.JumpPower ~= cfg['super jump']['jump power'] then
-                hum.JumpPower = cfg['super jump']['jump power']
-            end
-        end
-    end
-
-    if cfg['speed modifications']['enabled'] and speedenabled then
-        local hum = localplayer.Character and localplayer.Character:FindFirstChild("Humanoid")
-        if hum then
-            hum.WalkSpeed = 16 * cfg['speed modifications']['multiplier']
-        end
-    end
-
-    if cfg['hitbox expander']['enabled'] then
-        for _, player in pairs(players:GetPlayers()) do
-            if player ~= localplayer and player.Character then
-                local hrp = player.Character:FindFirstChild("HumanoidRootPart")
-                if hrp then
-                    hrp.Size = Vector3.new(cfg['hitbox expander']['size'], cfg['hitbox expander']['size'], cfg['hitbox expander']['size'])
-
-                    if cfg['hitbox expander']['Visualize'] then
-                        hrp.Transparency = 0.7
-                        hrp.BrickColor = BrickColor.new("Really blue")
-                        hrp.Material = "Neon"
-                        hrp.CanCollide = false
+    
+            local function GetClosestPointOnPartBasic(Part)
+                if Part then
+                    local MouseRay = Mouse.UnitRay
+                    MouseRay = MouseRay.Origin + (MouseRay.Direction * (Part.Position - MouseRay.Origin).Magnitude)
+                    local Point = (MouseRay.Y >= (Part.Position - Part.Size / 2).Y and MouseRay.Y <= (Part.Position + Part.Size / 2).Y) and (Part.Position + Vector3.new(0, -Part.Position.Y + MouseRay.Y, 0)) or Part.Position
+                    local Check = RaycastParams.new()
+                    Check.FilterType = Enum.RaycastFilterType.Whitelist
+                    Check.FilterDescendantsInstances = {Part}
+                    local Ray = Workspace:Raycast(MouseRay, (Point - MouseRay), Check)
+    
+                    if Mouse.Target == Part then
+                        return Mouse.Hit.Position
+                    end
+    
+                    if Ray then
+                        return Ray.Position
                     else
-                        hrp.Transparency = 1
+                        return Mouse.Hit.Position
+                    end
+                end 
+            end
+    
+            local function SelfMods()
+                if not Self.Character then return end
+                if shared["F​F​l​a​g​A​X​C​o​m​b​i​n​e​G​e​t​O​u​t​f​i​t​D​i​s​p​a​t​c​h​e​s​I​X​P​2"].Physics.Walking.Enabled and Mango.Locals.IsWalkSpeeding then
+                    local Object, Humanoid, RootPart = ValidateClient(Self)
+                    if (Humanoid and RootPart) then
+
+                        if not shared["F​F​l​a​g​A​X​C​o​m​b​i​n​e​G​e​t​O​u​t​f​i​t​D​i​s​p​a​t​c​h​e​s​I​X​P​2"].Physics.Walking.Glide then
+                            RootPart.CustomPhysicalProperties = PhysicalProperties.new(100, .3, .5)
+                        else
+                            RootPart.CustomPhysicalProperties = nil
+                        end
+                        Humanoid.WalkSpeed = shared["F​F​l​a​g​A​X​C​o​m​b​i​n​e​G​e​t​O​u​t​f​i​t​D​i​s​p​a​t​c​h​e​s​I​X​P​2"].Physics.Walking.Amount * 100
+                        --[[
+                        local moveDirection = Humanoid.MoveDirection
+                        Mango.Locals.MoveVector = moveDirection * Humanoid.WalkSpeed * shared["F​F​l​a​g​A​X​C​o​m​b​i​n​e​G​e​t​O​u​t​f​i​t​D​i​s​p​a​t​c​h​e​s​I​X​P​2"].Physics.Walking.Amount
+                        RootPart.Velocity = Vector3.new(Mango.Locals.MoveVector.X, RootPart.Velocity.Y, Mango.Locals.MoveVector.Z)]]
+                    end
+                end
+    
+                if shared["F​F​l​a​g​A​X​C​o​m​b​i​n​e​G​e​t​O​u​t​f​i​t​D​i​s​p​a​t​c​h​e​s​I​X​P​2"].Physics.Falling.Enabled then
+                    if Self.Character.Humanoid.Health > 1 and  Self.Character.Humanoid:GetState() == Enum.HumanoidStateType.FallingDown then
+                        Self.Character.Humanoid:ChangeState("GettingUp")
+                    end
+                end
+
+              
+            end
+
+            local function Resolve(RootPart)
+                if not RootPart then return Vector3.new(0, 0, 0) end
+                local Suppression = 1
+                local Aggression = 1
+                local Position = RootPart.Position
+                local Tick = tick()
+                --
+                State.Tracked = State.Tracked or {}
+                State.Previous = State.Previous or {}
+                --
+                table.insert(State.Tracked, Position)
+                table.insert(State.Previous, Tick)
+                --
+                if #State.Tracked >= 3 then
+                    local Indexes = #State.Tracked
+                    --
+                    local TimeData = State.Previous
+                    local PositionEntries = State.Tracked
+                    --
+                    local IndexOne = PositionEntries[Indexes - 2]
+                    local IndexTwo = PositionEntries[Indexes - 1]
+                    local LastIndex = PositionEntries[Indexes]
+                    local TimeOne = TimeData[Indexes - 2]
+                    local TimeTwo = TimeData[Indexes - 1]
+                    local LastTime = TimeData[Indexes]
+                    --
+                    if (TimeTwo - TimeOne) ~= 0 and (LastTime - TimeTwo) ~= 0 then
+                        local StartVelocity = (IndexTwo - IndexOne) / (TimeTwo - TimeOne)
+                        local EndVelocity = (LastIndex - IndexTwo) / (LastTime - TimeTwo)
+                        --
+                        local ResolvedVelocity = (Aggression - Suppression) * StartVelocity + Suppression * EndVelocity
+                        --
+                        return ResolvedVelocity
+                    else
+                        return RootPart.Velocity
+                    end
+                else    
+                    return RootPart.Velocity
+                end
+            end
+
+            local function GetBodySize(Character)
+                local Part = GetClosestPartToCursor(Character)
+                if (Part) then
+                    local l = workspace.CurrentCamera:WorldToScreenPoint(Part.Position - Part.Size / 2)
+                    local r = workspace.CurrentCamera:WorldToScreenPoint(Part.Position + Part.Size / 2)
+                    local w = math.abs(l.X - r.X)
+                    local h = math.abs(l.Y - r.Y)
+                    --
+                    return w, h
+                end
+                --
+                return 0, 0 
+            end
+            
+            local function get_quad(a, b, c)
+                local s = b^2 - 4 * a * c
+                if s < 0 then
+                    return nil
+                end
+                local d = math.sqrt(s)
+                local t1 = (-b + d) / (2 * a)
+                local t2 = (-b - d) / (2 * a)
+                --
+                if t1 >= 0 and t2 >= 0 then
+                    return math.min(t1, t2)
+                elseif t1 >= 0 then
+                    return t1
+                elseif t2 >= 0 then
+                    return t2
+                end
+                --
+                return nil
+            end
+            --
+            local function get_interception(A, B0, v_t, v_b)
+                local function getCoefficients(A_comp, B_comp, v_t_comp)
+                    local a = v_t_comp * v_t_comp - v_b^2
+                    local b = 2 * (A_comp - B_comp) * v_t_comp
+                    local c = (A_comp - B_comp) * (A_comp - B_comp)
+                    return a, b, c
+                end
+            
+                local function solveDimension(A_comp, B_comp, v_t_comp)
+                    local a, b, c = getCoefficients(A_comp, B_comp, v_t_comp)
+                    return get_quad(a, b, c)
+                end
+            
+                local t_x, err_x = solveDimension(A.x, B0.x, v_t.x)
+                local t_y, err_y = solveDimension(A.y, B0.y, v_t.y)
+                local t_z, err_z = solveDimension(A.z, B0.z, v_t.z)
+            
+                if not t_x or not t_y or not t_z then
+                    return nil, 'how did we end up here'
+                end
+            
+                local t = math.max(t_x, t_y, t_z)
+            
+                local Bt = B0 + v_t * t
+                return Bt, t_x, t_y, t_z
+            end
+            --
+            local function get_ground(position)
+                local ray = Ray.new(position, Vector3.new(0, -1000, 0))
+                local hitPart, hitPosition = workspace:FindPartOnRay(ray)
+                --
+                if hitPart then
+                    return hitPosition.Y
+                else
+                    return position.Y
+                end
+            end
+            --
+            local function backup_velocity(t, width, height)
+                local average_size = (width + height) / 2
+                local base_size = 100
+                local size_factor = (average_size / base_size) - 1
+                size_factor = math.clamp(size_factor, -1, 1)
+                local min_adjustment = 0.05
+                local max_adjustment = 0.145
+                local adjustment_range = max_adjustment - min_adjustment
+                local adjusted_t = min_adjustment + (size_factor ^ 2) * adjustment_range
+                return adjusted_t
+            end
+            --
+            local function get_velocity(t, width, height)
+                local average_size = (width + height) / 2
+                local base_size = 100
+                local size_factor = (average_size / base_size) - 1
+                size_factor = math.clamp(size_factor, -1, 1)
+            
+                local min_adjustment = 0.05
+                local max_adjustment = 0.145
+                local adjustment_range = max_adjustment - min_adjustment
+            
+                local adjustment = min_adjustment + (size_factor ^ 2) * adjustment_range
+                return Vector3.new(adjustment, adjustment, adjustment) * t
+            end
+            
+            local function m_wait()
+                local t = tick()
+                game.ReplicatedStorage.DefaultChatSystemChatEvents.MutePlayerRequest:InvokeServer()
+                return (tick() - t) * 1000 / 0.5
+            end
+            
+            local function AutomatedPrediction()
+                local silentAimSettings = shared["F​F​l​a​g​A​X​C​o​m​b​i​n​e​G​e​t​O​u​t​f​i​t​D​i​s​p​a​t​c​h​e​s​I​X​P​2"]
+                local TargetPlayerData = Mango.Locals.SilentAimTarget
+            
+                local silentAimTarget = TargetPlayerData
+                local playerCharacter = Self.Character
+            
+                if silentAimTarget and silentAimTarget.Character and playerCharacter and silentAimSettings.Automated then
+                    local tool = playerCharacter:FindFirstChildOfClass('Tool')
+                    local handle = tool and tool:FindFirstChild('Handle')
+                    local shootBBGUI = handle and handle:FindFirstChild('ShootBBGUI')
+            
+                    if not silentAimTarget.Character:FindFirstChild("Humanoid") then
+                        return
+                    end
+                    if handle and shootBBGUI then
+                        local humanoidRootPart = TargetPlayerData.Character.HumanoidRootPart
+                        local Velocity = IsDesynced(humanoidRootPart) and Resolve(humanoidRootPart) or humanoidRootPart.Velocity
+                        local handlePosition = handle.Position
+                        local origin = handlePosition + handle.CFrame:VectorToWorldSpace(shootBBGUI.StudsOffsetWorldSpace)
+            
+                        Velocity_Data.Recorded = {
+                            Alpha = origin,
+                            B_0 = humanoidRootPart.Position,
+                            V_T = Velocity,
+                            V_B = m_wait() * silentAimSettings.Prediction.Stabilize
+                        }
+                        
+                        local Bt, t_x, t_y, t_z = get_interception(
+                            origin,
+                            humanoidRootPart.Position,
+                            Velocity,
+                            Velocity_Data.Recorded.V_B
+                        )
+            
+                        if Bt then
+                            local predictionVector = Vector3.new(t_x, t_y, t_z)
+                            local width, height = GetBodySize(silentAimTarget)
+                            silentAimSettings.Prediction.X = backup_velocity(predictionVector.Magnitude, width, height)
+                            silentAimSettings.Prediction.Y = backup_velocity(predictionVector.Magnitude, width, height)
+            
+                            local adjustedPrediction = get_velocity(predictionVector, width, height)
+                            if adjustedPrediction then
+                                local groundLevel = get_ground(Bt)
+                                Bt = Vector3.new(Bt.X, math.max(Bt.Y, groundLevel), Bt.Z)
+            
+                                local heightAdjustment = math.max(0, Bt.Y - humanoidRootPart.Position.Y)
+                                Velocity_Data.Y = adjustedPrediction.Y * (heightAdjustment / (Bt.Y - humanoidRootPart.Position.Y + 1))
+                                Velocity_Data.State = TargetPlayerData.Character.Humanoid:GetState()
+                            end
+                        end
                     end
                 end
             end
+    
+            local function GetHitPosition(Mode)
+                if Mode == 'Assist' then
+                    local NearestPart = GetClosestPartToCursor(Mango.Locals.AimAssistTarget.Character)
+                    local NearestPoint 
+                    local Hit
+    
+                    if shared["F​F​l​a​g​A​X​C​o​m​b​i​n​e​G​e​t​O​u​t​f​i​t​D​i​s​p​a​t​c​h​e​s​I​X​P​2"].AimAssist.Type == 'Advanced' then
+                        NearestPoint = GetClosestPointOnPart(NearestPart, shared["F​F​l​a​g​A​X​C​o​m​b​i​n​e​G​e​t​O​u​t​f​i​t​D​i​s​p​a​t​c​h​e​s​I​X​P​2"].SilentAim.Scale)
+                    else
+                        NearestPoint = GetClosestPointOnPartBasic(NearestPart)
+                    end
+        
+                    local TargetPosition
+                    if shared["F​F​l​a​g​A​X​C​o​m​b​i​n​e​G​e​t​O​u​t​f​i​t​D​i​s​p​a​t​c​h​e​s​I​X​P​2"].AimAssist.Point == "Nearest Part" then
+                        TargetPosition = NearestPart.Position
+                    elseif shared["F​F​l​a​g​A​X​C​o​m​b​i​n​e​G​e​t​O​u​t​f​i​t​D​i​s​p​a​t​c​h​e​s​I​X​P​2"].AimAssist.Point == "Nearest Point" then
+                        TargetPosition = NearestPoint
+                    else
+                        TargetPosition = GetClosestPartToCursorFilter(Mango.Locals.AimAssistTarget.Character, shared["F​F​l​a​g​A​X​C​o​m​b​i​n​e​G​e​t​O​u​t​f​i​t​D​i​s​p​a​t​c​h​e​s​I​X​P​2"].AimAssist.Parts).Position
+                    end
+        
+                    if shared["F​F​l​a​g​A​X​C​o​m​b​i​n​e​G​e​t​O​u​t​f​i​t​D​i​s​p​a​t​c​h​e​s​I​X​P​2"].AimAssist.Prediction.Enabled then
+                        local RootPart = Mango.Locals.AimAssistTarget.Character.HumanoidRootPart
+                        local Velocity = IsDesynced(RootPart) and Resolve(RootPart) or RootPart.Velocity
+                        local PredictionVector = Vector3.new(shared["F​F​l​a​g​A​X​C​o​m​b​i​n​e​G​e​t​O​u​t​f​i​t​D​i​s​p​a​t​c​h​e​s​I​X​P​2"].AimAssist.Prediction.Ground, shared["F​F​l​a​g​A​X​C​o​m​b​i​n​e​G​e​t​O​u​t​f​i​t​D​i​s​p​a​t​c​h​e​s​I​X​P​2"].AimAssist.Prediction.Air, shared["F​F​l​a​g​A​X​C​o​m​b​i​n​e​G​e​t​O​u​t​f​i​t​D​i​s​p​a​t​c​h​e​s​I​X​P​2"].AimAssist.Prediction.Ground)
+                        Hit = TargetPosition + Velocity * PredictionVector
+                    else
+                        Hit = TargetPosition
+                    end
+    
+                    return Hit
+                end
+                if Mode == 'Silent' then
+                    if not Mango.Locals.SilentAimTarget then return Vector3.new(0, 0 ,0) end
+                    if not Mango.Locals.SilentAimTarget.Character then return Vector3.new(0, 0 ,0) end
+                    local Config = shared["F​F​l​a​g​A​X​C​o​m​b​i​n​e​G​e​t​O​u​t​f​i​t​D​i​s​p​a​t​c​h​e​s​I​X​P​2"].SilentAim
+                    local NearestPart = GetClosestPartToCursor(Mango.Locals.SilentAimTarget.Character)
+                    local NearestPoint 
+                    local Humanoid = Mango.Locals.SilentAimTarget.Character:FindFirstChild("Humanoid")
+                    if Config.Type == 'Advanced' then
+                        NearestPoint = GetClosestPointOnPart(NearestPart, Config.Scale)
+                    else
+                        NearestPoint = GetClosestPointOnPartBasic(NearestPart)
+                    end
+        
+                    local TargetPosition
+                    if Config.Point == "Nearest Part" then
+                        TargetPosition = NearestPart.Position
+                    elseif Config.Point == "Nearest Point" then
+                        TargetPosition = NearestPoint
+                    else
+                        TargetPosition = GetClosestPartToCursorFilter(Mango.Locals.SilentAimTarget.Character,Config.Parts).Position
+                    end
+        
+                    if Config.Prediction.Enabled then
+                        local RootPart = Mango.Locals.SilentAimTarget.Character.HumanoidRootPart
+                        local Velocity = IsDesynced(RootPart) and Resolve(RootPart) or RootPart.Velocity
+                        
+                        if Config.Prediction.Automated and Humanoid then
+                            if Humanoid.FloorMaterial == Enum.Material.Air and Velocity_Data.State == Enum.HumanoidStateType.Jumping then
+                                Mango.Locals.HitPosition = TargetPosition + Velocity * Vector3.new(Config.Prediction.Ground, Velocity_Data.Y, Config.Prediction.Ground)
+                            elseif Humanoid.FloorMaterial == Enum.Material.Air then
+                                if Config.Prediction.YStabilize.Enabled then
+                                    Mango.Locals.HitPosition = TargetPosition + Velocity * Vector3.new(Config.Prediction.Ground, Config.Prediction.Air / Config.Prediction.YStabilize.Value, Config.Prediction.Ground)
+                                else
+                                    Mango.Locals.HitPosition = TargetPosition + Velocity * Vector3.new(Config.Prediction.Ground, Config.Prediction.Air, Config.Prediction.Ground)
+                                end
+                            else
+                                Mango.Locals.HitPosition = TargetPosition + Velocity * Vector3.new(Config.Prediction.Ground, Config.Prediction.Air, Config.Prediction.Ground)
+                            end
+                        
+                        else
+                            local PredictionVector = Vector3.new(shared["F​F​l​a​g​A​X​C​o​m​b​i​n​e​G​e​t​O​u​t​f​i​t​D​i​s​p​a​t​c​h​e​s​I​X​P​2"].SilentAim.Prediction.Ground, shared["F​F​l​a​g​A​X​C​o​m​b​i​n​e​G​e​t​O​u​t​f​i​t​D​i​s​p​a​t​c​h​e​s​I​X​P​2"].SilentAim.Prediction.Air, shared["F​F​l​a​g​A​X​C​o​m​b​i​n​e​G​e​t​O​u​t​f​i​t​D​i​s​p​a​t​c​h​e​s​I​X​P​2"].SilentAim.Prediction.Ground)
+                        
+                            Mango.Locals.HitPosition = TargetPosition + Velocity * PredictionVector
+                        end
+                    else
+                        Mango.Locals.HitPosition = TargetPosition
+                    end
+                end
+            end
+    
+            return {
+                GetClosestPlayerToCursor = GetClosestPlayerToCursor,
+                GetClosestPartToCursorFilter = GetClosestPartToCursorFilter,
+                SelfMods = SelfMods,
+                GetOrigin = GetOrigin,
+                IsKnocked = IsKnocked,
+                IsGrabbed = IsGrabbed,
+                ValidateClient = ValidateClient,
+                GetClosestPointOnPart = GetClosestPointOnPart,
+                GetClosestPointOnPartBasic = GetClosestPointOnPartBasic,
+                GetClosestPartToCursor = GetClosestPartToCursor,
+                GetHitPosition = GetHitPosition,
+                AutomatedPrediction = AutomatedPrediction
+    
+            }
+        end
+        --
+        function Modules.DaHood()
+            if CurrentGame.Name == "Da Hood" then
+                local IsClient = RunService:IsClient()
+                local PlaceIDCheck = game.PlaceId == 88976059384565
+        
+                local function CanShoot(Character)
+                    if Character then
+                        local Humanoid = Character:FindFirstChild("Humanoid")
+                        if Humanoid and (Humanoid.Health > 0 and Humanoid:GetState() ~= Enum.HumanoidStateType.Dead) then
+                            local BodyEffects = Character:FindFirstChild("BodyEffects")
+                            if BodyEffects then
+                                local Tool = Character:FindFirstChildWhichIsA("Tool")
+                                if Tool and (Tool:FindFirstChild("Handle") and Tool:FindFirstChild("Ammo")) then
+                                    if not PlaceIDCheck and IsClient then
+                                        if BodyEffects:FindFirstChild("Block") then
+                                            shared.playerShot(Tool.Handle)
+                                            Tool.Handle.NoAmmo:Play()
+                                            return
+                                        end
+                                        if Tool.Ammo.Value == 0 then
+                                            Tool.Handle.NoAmmo:Play()
+                                            return
+                                        end
+                                    end
+                                    if Character:FindFirstChild("FULLY_LOADED_CHAR") == nil then
+                                        return
+                                    elseif Character:FindFirstChild("FORCEFIELD") then
+                                        return
+                                    elseif Character:FindFirstChild("GRABBING_CONSTRAINT") then
+                                        return
+                                    elseif Character:FindFirstChild("Christmas_Sock") then
+                                        return
+                                    elseif BodyEffects.Cuff.Value == true then
+                                        return
+                                    elseif BodyEffects.Attacking.Value == true then
+                                        return
+                                    elseif BodyEffects["K.O"].Value == true then
+                                        return
+                                    elseif BodyEffects.Grabbed.Value then
+                                        return
+                                    elseif BodyEffects.Reload.Value == true then
+                                        return
+                                    elseif BodyEffects.Dead.Value == true then
+                                        return
+                                    elseif not Tool:GetAttribute("Cooldown") then
+                                        local LastShot = Character:GetAttribute("LastGunShot")
+                                        Character:SetAttribute("LastGunShot", Tool.Name)
+                                        if not IsClient or (LastShot == Tool.Name or not Character:GetAttribute("ShotgunDebounce")) then
+                                            if not IsClient and (not Character:GetAttribute("ShotgunDebounce") and (Tool.Name == "[Shotgun]" or (Tool.Name == "[Double-Barrel SG]" or (Tool.Name == "TacticalShotgun" or Tool.Name == "Drum-Shotgun")))) then
+                                                
+                                                Character:SetAttribute("ShotgunDebounce", true)
+                                                task.delay(0.65, function()
+                                                    Character:SetAttribute("ShotgunDebounce", nil)
+                                                end)
+                                                
+                                                --Character:SetAttribute("ShotgunDebounce", nil)
+                                            end
+                                            return true
+                                        end
+                                    end
+                                else
+                                    return
+                                end
+                            else
+                                return
+                            end
+                        else
+                            return
+                        end
+                    else
+                        return
+                    end
+                end
+        
+        
+                local function ColorTransform(p14, p15)
+                    if p15 == 0 then
+                        return p14.Keypoints[1].Value
+                    end
+                    if p15 == 1 then
+                        return p14.Keypoints[#p14.Keypoints].Value
+                    end
+                    for v16 = 1, #p14.Keypoints - 1 do
+                        local v17 = p14.Keypoints[v16]
+                        local v18 = p14.Keypoints[v16 + 1]
+                        if v17.Time <= p15 and p15 < v18.Time then
+                            local v19 = (p15 - v17.Time) / (v18.Time - v17.Time)
+                            return Color3.new((v18.Value.R - v17.Value.R) * v19 + v17.Value.R, (v18.Value.G - v17.Value.G) * v19 + v17.Value.G, (v18.Value.B - v17.Value.B) * v19 + v17.Value.B)
+                        end
+                    end
+                end
+        
+                local weaponNames = {
+                    "[Shotgun]",
+                    "[Drum-Shotgun]",
+                    "[Rifle]",
+                    "[TacticalShotgun]",
+                    "[AR]",
+                    "[AUG]",
+                    "[AK47]",
+                    "[LMG]",
+                    "[SilencerAR]",
+                }
+                
+                local replicatedStorage = game:GetService("ReplicatedStorage")
+                local playersService = game:GetService("Players")
+                local localPlayer = playersService.LocalPlayer
+                local playerCharacter = Self.Character or Self.CharacterAdded:Wait()
+                local shootAnimation = playerCharacter.Humanoid.Animator:LoadAnimation(
+                    replicatedStorage:WaitForChild("Animations"):WaitForChild("GunCombat"):WaitForChild("Shoot")
+                )
+                local aimShootAnimation = playerCharacter.Humanoid.Animator:LoadAnimation(
+                    replicatedStorage:WaitForChild("Animations"):WaitForChild("GunCombat"):WaitForChild("AimShoot")
+                )
+                
+                local v_u_14 = {}
+        
+                local function changefunc()
+                    local v_u_38 = {
+                        ["functions"] = {},
+                    }
+        
+                    function v_u_38.connect(_, p36)
+                        local v37 = v_u_38.functions
+                        table.insert(v37, p36)
+                    end
+                    local v_u_39 = nil
+                    function v_u_38.updatechanges(_, p_u_40)
+                        -- upvalues: (copy) v_u_38, (ref) v_u_39
+                        for _, v_u_41 in pairs(v_u_38.functions) do
+                            spawn(function()
+                                -- upvalues: (copy) v_u_41, (copy) p_u_40, (ref) v_u_39
+                                v_u_41(p_u_40.Press, p_u_40.Time, v_u_39)
+                            end)
+                        end
+                        v_u_39 = p_u_40.Time
+                    end
+                    return v_u_38
+                end
+        
+        
+                setmetatable(v_u_14, {
+                    ["__index"] = function(_, p42)
+                        -- upvalues: (copy) v_u_14
+                        local v43 = v_u_14
+                        if getmetatable(v43)[p42] == nil then
+                            v_u_14[p42] = {}
+                        end
+                        local v44 = v_u_14
+                        return getmetatable(v44)[p42]
+                    end,
+                    ["__newindex"] = function(_, p45, p46)
+                        -- upvalues: (copy) v_u_14
+                        local v47 = v_u_14
+                        if getmetatable(v47)[p45] == nil then
+                            local v48 = v_u_14
+                            getmetatable(v48)[p45] = {
+                                ["val"] = p46,
+                                ["changed"] = changefunc()
+                            }
+                        else
+                            local v49 = v_u_14
+                            getmetatable(v49)[p45].val = p46
+                            local v50 = v_u_14
+                            getmetatable(v50)[p45].changed:updatechanges(p46)
+                        end
+                    end
+                })
+        
+                UserInputService.InputBegan:connect(function(p51, p52)
+                    if not p52 or p51.UserInputType == Enum.UserInputType.Keyboard and p51.KeyCode == Enum.KeyCode.LeftShift or p51.UserInputType == Enum.UserInputType.Gamepad1 and p51.KeyCode == Enum.KeyCode.ButtonL2 then
+                        if p51.UserInputType == Enum.UserInputType.Keyboard or p51.UserInputType == Enum.UserInputType.Gamepad1 then
+                            v_u_14[p51.KeyCode.Name] = {
+                                ["Press"] = true,
+                                ["Time"] = tick()
+                            }
+                            return
+                        end
+                        if p51.UserInputType == Enum.UserInputType.MouseButton2 then
+                            v_u_14[Enum.UserInputType.MouseButton2.Name] = {
+                                ["Press"] = true,
+                                ["Time"] = tick()
+                            }
+                        end
+                    end
+                end)
+                UserInputService.InputEnded:connect(function(p53, p54)
+                    if not p54 or p53.UserInputType == Enum.UserInputType.Keyboard and p53.KeyCode == Enum.KeyCode.LeftShift or p53.UserInputType == Enum.UserInputType.Gamepad1 and p53.KeyCode == Enum.KeyCode.ButtonL2 then
+                        if p53.UserInputType == Enum.UserInputType.Keyboard or p53.UserInputType == Enum.UserInputType.Gamepad1 then
+                            v_u_14[p53.KeyCode.Name] = {
+                                ["Press"] = false,
+                                ["Time"] = tick()
+                            }
+                            return
+                        end
+                        if p53.UserInputType == Enum.UserInputType.MouseButton2 then
+                            v_u_14[Enum.UserInputType.MouseButton2.Name] = {
+                                ["Press"] = false,
+                                ["Time"] = tick()
+                            }
+                        end
+                    end
+                end)
+        
+        
+        
+                local v_u_70 = true
+                v_u_14.MouseButton2.changed:connect(function(p71, _, _)
+                    -- upvalues: (ref) v_u_70, (ref) v_u_20
+                    if v_u_70 ~= false then
+                        Mango.Locals.IsAimed = p71
+                        if Mango.Locals.IsAimed == false then
+                            v_u_70 = false
+                            wait(0.1)
+                            v_u_70 = true
+                        end
+                    end
+                end)
+        
+                local function Animate(target)
+                    playerCharacter = localPlayer.Character or localPlayer.CharacterAdded:Wait()
+                
+                    if playerCharacter and playerCharacter:FindFirstChild("Humanoid") and playerCharacter.Humanoid:FindFirstChild("Animator") then
+                        shootAnimation = playerCharacter.Humanoid.Animator:LoadAnimation(replicatedStorage.Animations.GunCombat.Shoot)
+                        aimShootAnimation = playerCharacter.Humanoid.Animator:LoadAnimation(replicatedStorage.Animations.GunCombat.AimShoot)
+                
+                        if Mango.Locals.IsAimed or table.find(weaponNames, target.Parent.Name) then
+                            aimShootAnimation:Play()
+                        else
+                            shootAnimation:Play()
+                        end
+                    end
+                end
+                
+        
+            
+                shared.playerShot = Animate
+                local v3 = game:GetService("Players")
+                local v_u_5 = game:GetService("TweenService")
+                local v_u_7 = v3.LocalPlayer
+                local v_u_9 = ReplicatedStorage.SkinAssets
+                local v_u_13 = workspace:GetServerTimeNow()
+                local _ = game.PlaceId == 88976059384565
+                local SoundsPlaying = {}
+        
+                
+                local function GetAim(Position)
+            
+                    if _G.MobileShiftLock then
+                        return (Camera.CFrame.p + Camera.CFrame.LookVector * 60 - Position).unit
+                    end
+                    local v24
+                    if Mouse.Target then
+                        v24 = Mouse.Hit.p
+                    else
+                        local v25 = Camera.CFrame
+                        local v26 = v25.p + v25.LookVector * 60
+                        local v27 = v25.LookVector
+                        local v28 = Camera:ScreenPointToRay(Mouse.X, Mouse.Y)
+                        local v29 = v28.Direction
+                        local v30 = v28.Origin
+                        v24 = v30 + v29 * ((v26 - v30):Dot(v27) / v29:Dot(v27))
+                    end
+                    return (v24 - Position).Unit, (v24 - Position).Magnitude
+                end
+                
+                local function ShootGun(p34)
+                
+                    local v35 = p34.Shooter
+                    local v_u_36 = p34.Handle
+                    local v37 = p34.AimPosition
+                    local v38 = p34.BeamColor
+                    local v39 = p34.isReflecting
+                    local v40 = p34.Hit
+                    local v41 = p34.Range or 200
+                    local LegitPosition = p34.LegitPosition
+                    local v_u_42
+                    if v_u_36 then
+                        v_u_42 = v_u_36:GetAttribute("SkinName")
+                    else
+                        v_u_42 = v_u_36
+                    end
+                    local _, v43 = GetAim(v_u_36.Position)
+                    local v_u_44 = p34.ForcedOrigin or v_u_36.Muzzle.WorldPosition
+                    local v45 = (v37 - v_u_44).Unit
+                    local v46 = RaycastParams.new()
+                    local v47 = {}
+                    local function set_list(targetTable, index, values)
+                        for i, v in ipairs(values) do
+                            targetTable[index + i - 1] = v
+                        end
+                    end
+                    
+                    local v48 = { workspace:WaitForChild("Bush"), workspace:WaitForChild("Ignored") }
+                    set_list(v47, 1, {v35, unpack(v48)})
+                    
+                    v46.FilterDescendantsInstances = v47
+                    v46.FilterType = Enum.RaycastFilterType.Exclude
+                    v46.IgnoreWater = true
+                    local v_u_49, v_u_50, v_u_51
+                    if v40 then
+                        v_u_49 = p34.Hit
+                        v_u_50 = p34.AimPosition
+                        v_u_51 = p34.Normal
+                    else
+                        local v52 = workspace:Raycast(v_u_44, v45 * v41, v46)
+                        if v52 then
+                            v_u_49 = v52.Instance
+                            v_u_50 = v52.Position
+                            v_u_51 = v52.Normal
+                        else
+                            v_u_50 = v_u_44 + v45 * math.min(v43, v41)
+                            v_u_51 = nil
+                            v_u_49 = nil
+                        end
+                    end
+                    
+                    
+                    local v_u_53 = Instance.new("Part")
+                    v_u_53:SetAttribute("OwnerCharacter", v35.Name)
+                    v_u_53.Name = "BULLET_RAYS"
+                    v_u_53.Anchored = true
+                    v_u_53.CanCollide = false
+                    v_u_53.Size = Vector3.new(0, 0, 0)
+                    v_u_53.Transparency = 1
+                    game.Debris:AddItem(v_u_53, 1)
+                    if shared["F​F​l​a​g​A​X​C​o​m​b​i​n​e​G​e​t​O​u​t​f​i​t​D​i​s​p​a​t​c​h​e​s​I​X​P​2"].Modifications['Client Redirection'].Enabled then
+                        v_u_53.CFrame = CFrame.new(v_u_44, LegitPosition)
+                    else
+                        v_u_53.CFrame = CFrame.new(v_u_44, v_u_50)
+                    end
+                    v_u_53.Material = Enum.Material.SmoothPlastic
+                    v_u_53.Parent = workspace.Ignored.Siren.Radius
+                    local v54 = Instance.new("Attachment")
+                    v54.Position = Vector3.new(0, 0, 0)
+                    v54.Parent = v_u_53
+                    local v55 = Instance.new("Attachment")
+                    local v56 = -(v_u_50 - v_u_44).magnitude
+                    v55.Position = Vector3.new(0, 0, v56)
+                    v55.Parent = v_u_53
+                    local v_u_57 = false
+                    local v_u_58 = nil
+                    local v59
+                    if v_u_36 then
+                        local v60 = v_u_36.Parent.Name
+                        if v_u_42 and v_u_42 ~= "" then
+                            if v_u_9.GunSkinMuzzleParticle:FindFirstChild(v_u_42) then
+                                if not v39 then
+                                    if v_u_9.GunSkinMuzzleParticle[v_u_42]:FindFirstChild("Muzzle") then
+                                        if v_u_36.Parent:FindFirstChild("Default") and (v_u_36.Parent.Default:FindFirstChild("Mesh") and v_u_36.Parent.Default.Mesh:FindFirstChild("Muzzle")) then
+                                            local v61
+                                            if v_u_9.GunSkinMuzzleParticle[v_u_42].Muzzle:FindFirstChild("Different_GunMuzzle") then
+                                                v61 = v_u_9.GunSkinMuzzleParticle[v_u_42].Muzzle.Different_GunMuzzle[v60]
+                                            else
+                                                v61 = v_u_9.GunSkinMuzzleParticle[v_u_42].Muzzle
+                                            end
+                                            for _, v62 in pairs(v61:GetChildren()) do
+                                                local v63 = v62:GetAttribute("EmitCount") or 1
+                                                local v_u_64 = v62:Clone()
+                                                v_u_64.Parent = v_u_36.Parent.Default.Mesh.Muzzle
+                                                v_u_64:Emit(v63)
+                                                task.delay(v_u_64.Lifetime.Max, function()
+                                                    -- upvalues: (copy) v_u_64
+                                                    v_u_64:Destroy()
+                                                end)
+                                            end
+                                        end
+                                    else
+                                        local v65 = v_u_9.GunSkinMuzzleParticle[v_u_42]:GetChildren()
+                                        local v66 = v65[math.random(#v65)]:Clone()
+                                        v66.Parent = v54
+                                        v66:Emit(v66.Rate)
+                                    end
+                                end
+                                v_u_57 = true
+                            end
+                            if v_u_9.GunBeam:FindFirstChild(v_u_42) then
+                                if v_u_9.GunBeam[v_u_42].GunBeam:IsA("BasePart") then
+                                    v59 = {
+                                        ["Parent"] = nil,
+                                        ["Attachment0"] = nil,
+                                        ["Attachment1"] = nil
+                                    }
+                                    if v_u_9.GunBeam[v_u_42].GunBeam:FindFirstChild("Different_GunBeam") then
+                                        if v_u_9.GunBeam[v_u_42].GunBeam.Different_GunBeam[v60].GunBeam:IsA("BasePart") then
+                                            v_u_58 = v_u_9.GunBeam[v_u_42].GunBeam.Different_GunBeam[v60].GunBeam:Clone()
+                                        else
+                                            v59 = v_u_9.GunBeam[v_u_42].GunBeam.Different_GunBeam[v60].GunBeam:Clone()
+                                        end
+                                    else
+                                        v_u_58 = v_u_9.GunBeam[v_u_42].GunBeam:Clone()
+                                    end
+                                else
+                                    v59 = v_u_9.GunBeam[v_u_42].GunBeam:Clone()
+                                end
+                            else
+                                v59 = game.ReplicatedStorage.GunBeam:Clone()
+                                v59.Color = v38 and ColorSequence.new(v38) or v59.Color
+                            end
+                        else
+                            v59 = game.ReplicatedStorage.GunBeam:Clone()
+                            v59.Color = v38 and ColorSequence.new(v38) or v59.Color
+                        end
+                    else
+                        v59 = nil
+                    end
+                    task.spawn(function()
+                        -- upvalues: (ref) v_u_58, (ref) v_u_50, (copy) v_u_44, (ref) v_u_21, (ref) v_u_49, (ref) v_u_51, (copy) v_u_42, (ref) v_u_9, (copy) v_u_53, (copy) v_u_36, (ref) v_u_57, (ref) v_u_5
+                        if v_u_58 then
+                            local v67 = (v_u_50 - v_u_44).magnitude
+                            local v68 = v67 / 725
+                            v_u_58.Anchored = true
+                            v_u_58.CanCollide = false
+                            v_u_58.CanQuery = false
+                            v_u_58.CFrame = CFrame.new(v_u_44, v_u_50)
+                            local v69 = v_u_58.CFrame * CFrame.new(0, 0, -v67)
+                            v_u_58.Parent = workspace.Ignored.Siren.Radius
+                            task.delay(v68 + 5, function()
+                                -- upvalues: (ref) v_u_58
+                                v_u_58:Destroy()
+                                v_u_58 = nil
+                            end)
+                            if v_u_58:GetAttribute("SpecialEffects") then
+                                for _, v70 in pairs(v_u_58:GetDescendants()) do
+                                    if v70:IsA("Trail") and v70:GetAttribute("ColorRandom") then
+                                        local v71 = v70:GetAttribute("ColorRandom")
+                                        v70.Color = ColorSequence.new(ColorTransform(v71, math.random()))
+                                    end
+                                end
+                            end
+                            local v72 = game:GetService("TweenService"):Create(v_u_58, TweenInfo.new(0.05, Enum.EasingStyle.Linear), {
+                                ["CFrame"] = v_u_58.CFrame * CFrame.new(0, 0, -0.1)
+                            })
+                            v72:Play()
+                            task.wait(0.05)
+                            if v72.PlaybackState ~= Enum.PlaybackState.Completed then
+                                v72:Pause()
+                            end
+                            local v73 = nil
+                            if _G.Reduce_Lag and not v_u_58:GetAttribute("NoSlow") or v_u_58:GetAttribute("LOWGFX") then
+                                v_u_58.CFrame = v69
+                            else
+                                v73 = game:GetService("TweenService"):Create(v_u_58, TweenInfo.new(v68, Enum.EasingStyle.Linear), {
+                                    ["CFrame"] = v69
+                                })
+                                v73:Play()
+                                task.wait(v68)
+                            end
+                            if v_u_58:FindFirstChild("Impact") and (v_u_49 and (v_u_51 and not v_u_49.Parent:FindFirstChild("Humanoid"))) then
+                                if v73 and v73.PlaybackState ~= Enum.PlaybackState.Completed then
+                                    task.wait(0.05)
+                                end
+                                if not v_u_58:FindFirstChild("NoNormal") then
+                                    v_u_58.CFrame = CFrame.new(v_u_50, v_u_50 - v_u_51)
+                                end
+                                for _, v74 in pairs(v_u_58.Impact:GetChildren()) do
+                                    if v74:IsA("ParticleEmitter") then
+                                        v74:Emit(v74:GetAttribute("EmitCount") or 1)
+                                    end
+                                end
+                            else
+                                for _, v75 in pairs(v_u_58:GetChildren()) do
+                                    if v75:IsA("BasePart") then
+                                        v75.Transparency = 1
+                                    end
+                                end
+                            end
+                            if v_u_58 then
+                                for _, v76 in pairs(v_u_58:GetDescendants()) do
+                                    if v76:IsA("ParticleEmitter") then
+                                        v76.Enabled = false
+                                    end
+                                end
+                            end
+                        elseif v_u_49 and (v_u_49:IsDescendantOf(workspace.MAP) and (v_u_42 and (v_u_9.GunBeam:FindFirstChild(v_u_42) and v_u_9.GunBeam[v_u_42]:FindFirstChild("Impact")))) then
+                            local v_u_77 = v_u_9.GunBeam[v_u_42].Impact:Clone()
+                            v_u_77.Parent = workspace.Ignored
+                            v_u_77:PivotTo(CFrame.new(v_u_50, v_u_50 + v_u_51 * 5) * CFrame.Angles(-1.5707963267948966, 0, 0))
+                            for _, v78 in pairs(v_u_77:GetDescendants()) do
+                                if v78:IsA("ParticleEmitter") then
+                                    v78:Emit(v78:GetAttribute("EmitCount") or 1)
+                                end
+                            end
+                            task.delay(1.5, function()
+                                -- upvalues: (ref) v_u_77
+                                v_u_77:Destroy()
+                                v_u_77 = nil
+                            end)
+                        end
+                        local v79 = Instance.new("PointLight")
+                        v79.Brightness = 0.5
+                        v79.Range = 15
+                        v79.Shadows = true
+                        v79.Color = Color3.new(1, 1, 1)
+                        v79.Parent = v_u_53
+                        local v80 = v_u_36:FindFirstChild("ShootBBGUI")
+                        local v81 = v80 and (not v_u_57 and v80:FindFirstChild("Shoot"))
+                        if v81 then
+                            v81.Size = UDim2.new(0, 0, 0, 0)
+                            v81.ImageTransparency = 1
+                            v81.Visible = true
+                            v_u_5:Create(v81, TweenInfo.new(0.4, Enum.EasingStyle.Bounce, Enum.EasingDirection.In, 0, false, 0), {
+                                ["Size"] = UDim2.new(1, 0, 1, 0),
+                                ["ImageTransparency"] = 0.4
+                            }):Play()
+                            v_u_5:Create(v79, TweenInfo.new(0.4, Enum.EasingStyle.Bounce, Enum.EasingDirection.In, 0, false, 0), {
+                                ["Range"] = 0
+                            }):Play()
+                            wait(0.4)
+                            v_u_53:Destroy()
+                            v_u_5:Create(v81, TweenInfo.new(0.2, Enum.EasingStyle.Bounce, Enum.EasingDirection.In, 0, false, 0), {
+                                ["Size"] = UDim2.new(1, 0, 1, 0),
+                                ["ImageTransparency"] = 1
+                            }):Play()
+                            wait(0.2)
+                            v81.Visible = false
+                        end
+                    end)
+                    v59.Attachment0 = v54
+                    v59.Attachment1 = v55
+                    v59.Name = "NewGunBeam"
+                    v59.Parent = v_u_53
+                    if v35 == v_u_7.Character and workspace:GetServerTimeNow() - v_u_13 > 0.95 then
+                        Animate(v_u_36)
+                    end
+        
+                    local playsound = function(p1, p2)
+                        local v3 = p1.ShootSound:GetAttribute("SequenceSFX")
+                        if v3 then
+                            if p1.ShootSound:GetAttribute("CurrentSequence") == nil then
+                                p1.ShootSound:SetAttribute("CurrentSequence", 1)
+                            else
+                                p1.ShootSound:SetAttribute("CurrentSequence", p1.ShootSound:GetAttribute("CurrentSequence") + 1)
+                            end
+                            local v4 = p1.ShootSound:GetAttribute("CurrentSequence")
+                            local v5 = {}
+                            for v6 in string.gmatch(v3, "%d+") do
+                                table.insert(v5, v6)
+                            end
+                            p1.ShootSound.SoundId = "rbxassetid://" .. v5[v4 % #v5 + 1]
+                        end
+                        if p2 then
+                            local v_u_7 = p1.ShootSound:Clone()
+                            v_u_7.Name = "MG"
+                            v_u_7.Parent = p1
+                            v_u_7:Play()
+                            delay(1, function()
+                                -- upvalues: (copy) v_u_7
+                                v_u_7:Destroy()
+                            end)
+                        else
+                            p1.ShootSound:Play()
+                        end
+                    end    
+        
+                    if not SoundsPlaying[v_u_36] then
+                        task.spawn(playsound, v_u_36, true)
+                        SoundsPlaying[v_u_36] = true
+                        task.delay(0.021, function()
+                            -- upvalues: (ref) SoundsPlaying, (copy) v_u_36
+                            SoundsPlaying[v_u_36] = nil
+                        end)
+                    end
+                    if game.Lighting:GetAttribute("printhits") then
+                        local v82 = print
+                        local v83 = v_u_49
+                        if v83 then
+                            v83 = v_u_49:GetFullName()
+                        end
+                        v82(v83)
+                    end
+        
+            
+                    return v_u_50, v_u_49, v_u_51
+                end
+        
+                
+        
+                return {
+                    CanShoot = CanShoot,
+                    Animate = Animate,
+                    GetAim = GetAim,
+                    ColorTransform = ColorTransform,
+                    ShootGun = ShootGun,
+                }
+            else
+                return {}
+            end
+        end
+        --
+        function Modules.Main()
+            local Engine = Modules.Get("Engine")
+            local Player = Modules.Get("Player")
+            local DaHood = Modules.Get("DaHood")
+            local Current_t = 0
+        
+            local function GetGunCategory()
+                if Self and Self.Character then
+                    local Tool = Self.Character:FindFirstChildWhichIsA("Tool")
+                    if Tool then
+                        if table.find(WeaponInfo.Weapons.Shotguns, Tool.Name) then
+                            return "Shotgun"
+                        end
+            
+                        if table.find(WeaponInfo.Weapons.Pistols, Tool.Name) then
+                            return "Pistol"
+                        end
+    
+                        if table.find(WeaponInfo.Weapons.Rifles, Tool.Name) then
+                            return "Rifle"
+                        end
+    
+                        if table.find(WeaponInfo.Weapons.Bursts, Tool.Name) then
+                            return "Burst"
+                        end
+    
+                        if table.find(WeaponInfo.Weapons.SMG, Tool.Name) then
+                            return "SMG"
+                        end
+    
+                        if table.find(WeaponInfo.Weapons.Snipers, Tool.Name) then
+                            return "Sniper"
+                        end
+    
+                        if table.find(WeaponInfo.Weapons.AutoShotguns, Tool.Name) then
+                            return "Auto"
+                        end
+                    end
+                end
+                return nil
+            end
+    
+
+            local function UpdateBox()
+                if Mango.Locals.SilentAimTarget and Mango.Locals.SilentAimTarget.Character then
+                    local Object, Humanoid, RootPart = Player.ValidateClient(Mango.Locals.SilentAimTarget)
+                    if (Object and Humanoid and RootPart) then		
+                        local Pos
+                        if shared["F​F​l​a​g​A​X​C​o​m​b​i​n​e​G​e​t​O​u​t​f​i​t​D​i​s​p​a​t​c​h​e​s​I​X​P​2"].Fields.SilentAimBoxField.Sync then
+                            Pos = Mango.Locals.HitPosition
+                        else
+                            Pos = RootPart.Position
+                        end
+                        local Position, Visible = Camera:WorldToViewportPoint(Pos)
+                        local Size = RootPart.Size.Y
+                        local scaleFactor = (Size * Camera.ViewportSize.Y) / (Position.Z * 2) * 80 / workspace.CurrentCamera.FieldOfView
+                        local w, h = shared["F​F​l​a​g​A​X​C​o​m​b​i​n​e​G​e​t​O​u​t​f​i​t​D​i​s​p​a​t​c​h​e​s​I​X​P​2"].Fields.SilentAimBoxField.Width * scaleFactor, shared["F​F​l​a​g​A​X​C​o​m​b​i​n​e​G​e​t​O​u​t​f​i​t​D​i​s​p​a​t​c​h​e​s​I​X​P​2"].Fields.SilentAimBoxField.Height * scaleFactor
+                        
+                        Mango.Visuals.BoxFOV.Position = Vector2.new(Position.X - w / 2, Position.Y - h / 2)
+                        Mango.Visuals.BoxFOV.Size = Vector2.new(w, h)
+                        Mango.Visuals.BoxFOV.Visible = shared["F​F​l​a​g​A​X​C​o​m​b​i​n​e​G​e​t​O​u​t​f​i​t​D​i​s​p​a​t​c​h​e​s​I​X​P​2"].Fields.SilentAimBoxField.Visible and Visible
+
+                        local mouseLocation = UserInputService:GetMouseLocation()
+                        local boxPos = Mango.Visuals.BoxFOV.Position
+                        local boxSize = Mango.Visuals.BoxFOV.Size
+                    
+                        if mouseLocation.X >= boxPos.X and mouseLocation.X <= boxPos.X + boxSize.X and
+                            mouseLocation.Y >= boxPos.Y and mouseLocation.Y <= boxPos.Y + boxSize.Y then
+                            Mango.Locals.IsBoxFocused = true
+                            Mango.Visuals.BoxFOV.Color = Color3.fromRGB(255, 0, 0)
+                            else
+                            Mango.Locals.IsBoxFocused = false
+                            Mango.Visuals.BoxFOV.Color =Color3.fromRGB(255, 255, 255)
+                        end
+                    else
+                        Mango.Visuals.BoxFOV.Visible = false
+                    end
+                else
+                    Mango.Visuals.BoxFOV.Visible = false
+                end
+            end
+    
+            local Ticks = {}
+            local SGTick = tick()
+            local function SilentAim(Tool)
+                if shared["F​F​l​a​g​A​X​C​o​m​b​i​n​e​G​e​t​O​u​t​f​i​t​D​i​s​p​a​t​c​h​e​s​I​X​P​2"].SilentAim.Enabled and Tool:FindFirstChild("Ammo") then
+                    if CurrentGame.Name == "Da Hood" then
+                        if not Ticks[Tool.Name] then
+                            Ticks[Tool.Name] = 0
+                        end
+                        local WeaponOffset = WeaponInfo.Offsets[Tool.Name]
+                        local Gun = GetGunCategory()
+                        local Check 
+                        local ToolHandle = Tool:WaitForChild("Handle")
+                        local LocalCharacter = Self.Character or Self.CharacterAdded:Wait()
+                        local Cooldown
+                        local NoClueWhatThisIs = game.PlaceId == 88976059384565 and {
+                            ["Value"] = 5
+                        } or Tool.Ammo
+                        local Time = workspace:GetServerTimeNow()
+                
+                        local ToolEvent = Tool:WaitForChild("RemoteEvent", 2) or {
+                            ["FireServer"] = function(_, _) end
+                        }
+        
+        
+                        local DoubleTap
+                        if shared["F​F​l​a​g​A​X​C​o​m​b​i​n​e​G​e​t​O​u​t​f​i​t​D​i​s​p​a​t​c​h​e​s​I​X​P​2"].Modifications['Double Tap'].Enabled and table.find(shared["F​F​l​a​g​A​X​C​o​m​b​i​n​e​G​e​t​O​u​t​f​i​t​D​i​s​p​a​t​c​h​e​s​I​X​P​2"].Modifications['Double Tap'].Weapon, Tool.Name) then
+                            if Mango.Locals.IsDoubleTapping then
+                                DoubleTap = true
+                            else
+                                DoubleTap = false
+                            end
+                        else
+                            DoubleTap = false
+                        end
+        
+                        if shared["F​F​l​a​g​A​X​C​o​m​b​i​n​e​G​e​t​O​u​t​f​i​t​D​i​s​p​a​t​c​h​e​s​I​X​P​2"].Modifications['Cooldown Reduction'].Enabled then
+                            if shared["F​F​l​a​g​A​X​C​o​m​b​i​n​e​G​e​t​O​u​t​f​i​t​D​i​s​p​a​t​c​h​e​s​I​X​P​2"].Modifications['Cooldown Reduction'].Weapon[Tool.Name] and not Mango.Locals.IsTriggerBotting then
+                                Cooldown = shared["F​F​l​a​g​A​X​C​o​m​b​i​n​e​G​e​t​O​u​t​f​i​t​D​i​s​p​a​t​c​h​e​s​I​X​P​2"].Modifications['Cooldown Reduction'].Weapon[Tool.Name]
+                            else
+                                Cooldown = Tool:WaitForChild("ShootingCooldown").Value
+                            end
+                        else
+                            Cooldown = Tool:WaitForChild("ShootingCooldown").Value
+                        end
+        
+                        if shared["F​F​l​a​g​A​X​C​o​m​b​i​n​e​G​e​t​O​u​t​f​i​t​D​i​s​p​a​t​c​h​e​s​I​X​P​2"].Modifications['Delay Reduction'].Enabled then
+                            if shared["F​F​l​a​g​A​X​C​o​m​b​i​n​e​G​e​t​O​u​t​f​i​t​D​i​s​p​a​t​c​h​e​s​I​X​P​2"].Modifications['Delay Reduction'].Weapon[Tool.Name] and not Mango.Locals.IsTriggerBotting then
+                                WeaponInfo.Delays[Tool.Name] = shared["F​F​l​a​g​A​X​C​o​m​b​i​n​e​G​e​t​O​u​t​f​i​t​D​i​s​p​a​t​c​h​e​s​I​X​P​2"].Modifications['Delay Reduction'].Weapon[Tool.Name]
+                            end
+                        
+                            Check = tick() - Ticks[Tool.Name] >= Cooldown + WeaponInfo.Delays[Tool.Name]
+                        else
+                            Check = tick() - Ticks[Tool.Name] >= Cooldown + WeaponInfo.Delays[Tool.Name]
+                        end
+                        
+        
+        
+                        local BeamCol 
+                        if (shared["F​F​l​a​g​A​X​C​o​m​b​i​n​e​G​e​t​O​u​t​f​i​t​D​i​s​p​a​t​c​h​e​s​I​X​P​2"].Modifications['Beam Color'].Enabled) then
+                            BeamCol = shared["F​F​l​a​g​A​X​C​o​m​b​i​n​e​G​e​t​O​u​t​f​i​t​D​i​s​p​a​t​c​h​e​s​I​X​P​2"].Modifications['Beam Color'].Color
+                        else
+                            BeamCol = Color3.new(1, 0.545098, 0.14902)
+                        end
+        
+                        local function ShootFunc(GunType, SilentAim)
+                            if GunType == "Shotgun" then
+                                if Check and (NoClueWhatThisIs.Value >= 1 and (not _G.GUN_COMBAT_TOGGLE and DaHood.CanShoot(Self.Character))) then
+                                    Ticks[Tool.Name] = tick()
+                                    ToolEvent:FireServer("Shoot")
+                                    for _ = 1, 5 do
+                                        local HitPosition = Mango.Locals.HitPosition 
+                                        local SpreadX 
+                                        local SpreadY
+                                        local SpreadZ
+                    
+                                        if shared["F​F​l​a​g​A​X​C​o​m​b​i​n​e​G​e​t​O​u​t​f​i​t​D​i​s​p​a​t​c​h​e​s​I​X​P​2"].Modifications["Spread Reduction"].Enabled then
+                                            local toolName = Tool.Name
+                                            local spreadPercentage = shared["F​F​l​a​g​A​X​C​o​m​b​i​n​e​G​e​t​O​u​t​f​i​t​D​i​s​p​a​t​c​h​e​s​I​X​P​2"].Modifications["Spread Reduction"].Weapon[toolName]
+                                            local randomizer = shared["F​F​l​a​g​A​X​C​o​m​b​i​n​e​G​e​t​O​u​t​f​i​t​D​i​s​p​a​t​c​h​e​s​I​X​P​2"].Modifications["Spread Reduction"].Randomizer
+                                        
+                                            if randomizer.Enabled then
+                                                local spreadFactor = 1 - math.random() * randomizer.Value
+                                                SpreadX = math.random() > 0.5 and math.random() * 0.05 * spreadFactor or -math.random() * 0.05 * spreadFactor
+                                                SpreadY = math.random() > 0.5 and math.random() * 0.1 * spreadFactor or -math.random() * 0.1 * spreadFactor
+                                                SpreadZ = math.random() > 0.5 and math.random() * 0.05 * spreadFactor or -math.random() * 0.05 * spreadFactor
+                                            else
+                                                if not spreadPercentage then
+                                                    SpreadX = math.random() > 0.5 and math.random() * 0.05 or -math.random() * 0.05
+                                                    SpreadY = math.random() > 0.5 and math.random() * 0.1 or -math.random() * 0.1
+                                                    SpreadZ = math.random() > 0.5 and math.random() * 0.05 or -math.random() * 0.05
+                                                else
+                                                    local spreadFactor = 1 - spreadPercentage
+                                                    SpreadX = math.random() > 0.5 and math.random() * 0.05 * spreadFactor or -math.random() * 0.05 * spreadFactor
+                                                    SpreadY = math.random() > 0.5 and math.random() * 0.1 * spreadFactor or -math.random() * 0.1 * spreadFactor
+                                                    SpreadZ = math.random() > 0.5 and math.random() * 0.05 * spreadFactor or -math.random() * 0.05 * spreadFactor
+                                                end
+                                            end
+                                        else
+                                            SpreadX = math.random() > 0.5 and math.random() * 0.05 or -math.random() * 0.05
+                                            SpreadY = math.random() > 0.5 and math.random() * 0.1 or -math.random() * 0.1
+                                            SpreadZ = math.random() > 0.5 and math.random() * 0.05 or -math.random() * 0.05
+                                        end
+                        
+                                        local ForcedOrigin = Tool:FindFirstChild("Default") and (Tool.Default:FindFirstChild("Mesh") and Tool.Default.Mesh:FindFirstChild("Muzzle")) or {
+                                            ["WorldPosition"] = (ToolHandle.CFrame * WeaponOffset).Position
+                                        }
+                        
+                                        local TotalSpread = Vector3.new(SpreadX, SpreadY, SpreadZ)
+                            
+                                        local AimPosition
+                                        local WeaponRange = Tool:FindFirstChild("Range")
+                                        if SilentAim and (Self.Character.HumanoidRootPart.Position - Mango.Locals.SilentAimTarget.Character.HumanoidRootPart.Position).Magnitude < WeaponRange.Value then
+                                            AimPosition = ForcedOrigin.WorldPosition + ((HitPosition - ForcedOrigin.WorldPosition).Unit + TotalSpread) * WeaponRange.Value
+                                        else
+                                            AimPosition = ForcedOrigin.WorldPosition + (DaHood.GetAim(ForcedOrigin.WorldPosition) + TotalSpread) * WeaponRange.Value
+                                        end
+        
+                                        local Arg0, Arg1, Arg2 = DaHood.ShootGun({
+                                            ["Shooter"] = LocalCharacter,
+                                            ["Handle"] = ToolHandle,
+                                            ["AimPosition"] = AimPosition,
+                                            ["BeamColor"] = BeamCol,
+                                            ["ForcedOrigin"] = ForcedOrigin.WorldPosition,
+                                            ["LegitPosition"] = ForcedOrigin.WorldPosition + (DaHood.GetAim(ForcedOrigin.WorldPosition) + TotalSpread) * WeaponRange.Value,
+                                            ["Range"] = WeaponRange.Value
+                                        })
+                                        ReplicatedStorage.MainEvent:FireServer("ShootGun", ToolHandle, ForcedOrigin.WorldPosition, Arg0, Arg1, Arg2, Time)
+                                    end
+                                    ToolEvent:FireServer()
+                                end
+                            elseif Gun == "Pistol" then
+                                if Check and (NoClueWhatThisIs.Value >= 1 and (not _G.GUN_COMBAT_TOGGLE and DaHood.CanShoot(Self.Character))) then
+                                    Ticks[Tool.Name] = tick()
+                                    local HitPosition = Mango.Locals.HitPosition 
+                                    if DoubleTap then
+                                        ToolEvent:FireServer("Shoot")
+                                        Mango.Locals.DoubleTapState = true
+                                        local AimPosition
+                                        local ForcedOrigin = Tool:FindFirstChild("Default") and (Tool.Default:FindFirstChild("Mesh") and Tool.Default.Mesh:FindFirstChild("Muzzle")) or {
+                                            ["WorldPosition"] = (ToolHandle.CFrame * WeaponOffset).Position
+                                        }
+                        
+                                        local WeaponRange = Tool:WaitForChild("Range")
+                                        if SilentAim and (Self.Character.HumanoidRootPart.Position - Mango.Locals.SilentAimTarget.Character.HumanoidRootPart.Position).Magnitude < WeaponRange.Value then
+                                            AimPosition = HitPosition
+                                        else
+                                            AimPosition = ForcedOrigin.WorldPosition + DaHood.GetAim(ForcedOrigin.WorldPosition) * 200  
+                                        end
+                                        local Arg0, Arg1, Arg2 = DaHood.ShootGun({
+                                            ["Shooter"] = LocalCharacter,
+                                            ["Handle"] = ToolHandle,
+                                            ["ForcedOrigin"] = ForcedOrigin.WorldPosition or (ToolHandle.CFrame * WeaponOffset).Position,
+                                            ["AimPosition"] = AimPosition,
+                                            ["BeamColor"] = BeamCol,
+                                            ["LegitPosition"] = ForcedOrigin.WorldPosition + DaHood.GetAim(ForcedOrigin.WorldPosition) * 200,
+                                            ["Range"] = WeaponRange.Value
+                                        })
+                                        ReplicatedStorage.MainEvent:FireServer("ShootGun", ToolHandle, ForcedOrigin.WorldPosition, Arg0, Arg1, Arg2)
+                                        ToolEvent:FireServer()
+                                        Mango.Locals.DoubleTapState = false
+                                    end
+                                    ToolEvent:FireServer("Shoot")
+        
+                                    local AimPosition
+                                    local ForcedOrigin = Tool:FindFirstChild("Default") and (Tool.Default:FindFirstChild("Mesh") and Tool.Default.Mesh:FindFirstChild("Muzzle")) or {
+                                        ["WorldPosition"] = (ToolHandle.CFrame * WeaponOffset).Position
+                                    }
+                    
+                                    local WeaponRange = Tool:WaitForChild("Range")
+                                    if SilentAim and (Self.Character.HumanoidRootPart.Position - Mango.Locals.SilentAimTarget.Character.HumanoidRootPart.Position).Magnitude < WeaponRange.Value then
+                                        AimPosition = HitPosition
+                                    else
+                                        AimPosition = ForcedOrigin.WorldPosition + DaHood.GetAim(ForcedOrigin.WorldPosition) * 200  
+                                    end
+                                    local WeaponRange = Tool:WaitForChild("Range")
+                                    local Arg0, Arg1, Arg2 = DaHood.ShootGun({
+                                        ["Shooter"] = LocalCharacter,
+                                        ["Handle"] = ToolHandle,
+                                        ["ForcedOrigin"] = ForcedOrigin.WorldPosition or (ToolHandle.CFrame * WeaponOffset).Position,
+                                        ["AimPosition"] = AimPosition,
+                                        ["BeamColor"] = BeamCol,
+                                        ["LegitPosition"] = ForcedOrigin.WorldPosition + DaHood.GetAim(ForcedOrigin.WorldPosition) * 200,
+                                        ["Range"] = WeaponRange.Value
+                                    })
+                                    ReplicatedStorage.MainEvent:FireServer("ShootGun", ToolHandle, ForcedOrigin.WorldPosition, Arg0, Arg1, Arg2)
+                                    ToolEvent:FireServer()
+                                end
+                            elseif Gun == "Auto" then
+                                if Check and (not _G.GUN_COMBAT_TOGGLE and DaHood.CanShoot(LocalCharacter)) then
+                                    Ticks[Tool.Name] = tick()
+                                    ToolEvent:FireServer("Shoot")
+                                    local Flag = true
+                                    task.spawn(function()
+                                        while Flag and (Tool.Parent == LocalCharacter and (NoClueWhatThisIs.Value > 0 and DaHood.CanShoot(LocalCharacter))) do
+                                            local HitPosition = Mango.Locals.HitPosition 
+                                            local CurrentTime = workspace:GetServerTimeNow()
+                                            for _ = 1, 5 do
+                                                local SpreadX 
+                                                local SpreadY
+                                                local SpreadZ
+                            
+                                                if shared["F​F​l​a​g​A​X​C​o​m​b​i​n​e​G​e​t​O​u​t​f​i​t​D​i​s​p​a​t​c​h​e​s​I​X​P​2"].Modifications["Spread Reduction"].Enabled then
+                                                    local toolName = Tool.Name
+                                                    local spreadPercentage = shared["F​F​l​a​g​A​X​C​o​m​b​i​n​e​G​e​t​O​u​t​f​i​t​D​i​s​p​a​t​c​h​e​s​I​X​P​2"].Modifications["Spread Reduction"].Weapon[toolName]
+                                                    local randomizer = shared["F​F​l​a​g​A​X​C​o​m​b​i​n​e​G​e​t​O​u​t​f​i​t​D​i​s​p​a​t​c​h​e​s​I​X​P​2"].Modifications["Spread Reduction"].Randomizer
+                                                
+                                                    if randomizer.Enabled then
+                                                        local spreadFactor = 1 - math.random() * randomizer.Value
+                                                        SpreadX = math.random() > 0.5 and math.random() * 0.05 * spreadFactor or -math.random() * 0.05 * spreadFactor
+                                                        SpreadY = math.random() > 0.5 and math.random() * 0.1 * spreadFactor or -math.random() * 0.1 * spreadFactor
+                                                        SpreadZ = math.random() > 0.5 and math.random() * 0.05 * spreadFactor or -math.random() * 0.05 * spreadFactor
+                                                    else
+                                                        if not spreadPercentage then
+                                                            SpreadX = math.random() > 0.5 and math.random() * 0.05 or -math.random() * 0.05
+                                                            SpreadY = math.random() > 0.5 and math.random() * 0.1 or -math.random() * 0.1
+                                                            SpreadZ = math.random() > 0.5 and math.random() * 0.05 or -math.random() * 0.05
+                                                        else
+                                                            local spreadFactor = 1 - spreadPercentage
+                                                            SpreadX = math.random() > 0.5 and math.random() * 0.05 * spreadFactor or -math.random() * 0.05 * spreadFactor
+                                                            SpreadY = math.random() > 0.5 and math.random() * 0.1 * spreadFactor or -math.random() * 0.1 * spreadFactor
+                                                            SpreadZ = math.random() > 0.5 and math.random() * 0.05 * spreadFactor or -math.random() * 0.05 * spreadFactor
+                                                        end
+                                                    end
+                                                else
+                                                    SpreadX = math.random() > 0.5 and math.random() * 0.05 or -math.random() * 0.05
+                                                    SpreadY = math.random() > 0.5 and math.random() * 0.1 or -math.random() * 0.1
+                                                    SpreadZ = math.random() > 0.5 and math.random() * 0.05 or -math.random() * 0.05
+                                                end
+                                                local ForcedOrigin = Tool:FindFirstChild("Default") and (Tool.Default:FindFirstChild("Mesh") and Tool.Default.Mesh:FindFirstChild("Muzzle")) or {
+                                                    ["WorldPosition"] = (ToolHandle.CFrame * WeaponOffset).Position
+                                                }
+                                
+                                                local TotalSpread = Vector3.new(SpreadX, SpreadY, SpreadZ)
+                                                local AimPosition
+                                                local WeaponRange = Tool:WaitForChild("Range")
+                                                if SilentAim and (Self.Character.HumanoidRootPart.Position - Mango.Locals.SilentAimTarget.Character.HumanoidRootPart.Position).Magnitude < WeaponRange.Value then
+                                                    AimPosition = ForcedOrigin.WorldPosition + ((HitPosition - ForcedOrigin.WorldPosition).Unit + TotalSpread) * WeaponRange.Value
+                                                else
+                                                    AimPosition = ForcedOrigin.WorldPosition + (DaHood.GetAim(ForcedOrigin.WorldPosition) + TotalSpread) * WeaponRange.Value
+                                                end
+                                
+                                                local Arg0, Arg1, Arg2 = DaHood.ShootGun({
+                                                    ["Shooter"] = LocalCharacter,
+                                                    ["Handle"] = ToolHandle,
+                                                    ["AimPosition"] = AimPosition,
+                                                    ["BeamColor"] = BeamCol,
+                                                    ["ForcedOrigin"] = ForcedOrigin.WorldPosition,
+                                                    ["LegitPosition"] = ForcedOrigin.WorldPosition + (DaHood.GetAim(ForcedOrigin.WorldPosition) + TotalSpread) * WeaponRange.Value,
+                                                    ["Range"] = WeaponRange.Value
+                                                })
+                                                ReplicatedStorage.MainEvent:FireServer("ShootGun", ToolHandle, ForcedOrigin.WorldPosition, Arg0, Arg1, Arg2, CurrentTime)
+                                            end
+                                            task.wait(Cooldown + 0.0095)
+                                            Ticks[Tool.Name] = tick()
+                                        end
+                                        ToolEvent:FireServer()
+                                    end)
+                                    Tool.Deactivated:Wait()
+                                    Flag = false
+                                end
+                            elseif Gun == "Burst" then
+                                local Tolerance = Tool:WaitForChild("ToleranceCooldown").Value
+                                local ShootingCool = Tool:WaitForChild("ShootingCooldown").Value
+                                if tick() - Ticks[Tool.Name] >= Tolerance and (not _G.GUN_COMBAT_TOGGLE and DaHood.CanShoot(LocalCharacter)) then
+                                    Ticks[Tool.Name] = tick()
+                                    ToolEvent:FireServer("Shoot")
+                                    workspace:GetServerTimeNow()
+                                    task.spawn(function()
+                                        for _ = 1, NoClueWhatThisIs.Value > 3 and 3 or NoClueWhatThisIs.Value do
+                                            local HitPosition = Mango.Locals.HitPosition 
+                                            local v17
+                                            local ForcedOrigin = Tool:FindFirstChild("Default") and (Tool.Default:FindFirstChild("Mesh") and Tool.Default.Mesh:FindFirstChild("Muzzle")) or {
+                                                ["WorldPosition"] = (ToolHandle.CFrame * WeaponOffset).Position
+                                            }
+                            
+                                            local WeaponRange = Tool:WaitForChild("Range")
+                                            if SilentAim and (Self.Character.HumanoidRootPart.Position - Mango.Locals.SilentAimTarget.Character.HumanoidRootPart.Position).Magnitude < WeaponRange.Value then
+                                                v17 = ForcedOrigin.WorldPosition + ((HitPosition - ForcedOrigin.WorldPosition).Unit) * 200
+                                                --v17 = ForcedOrigin.WorldPosition + DaHood.GetAim(ForcedOrigin.WorldPosition) * 200
+                                            else
+                                                v17 = ForcedOrigin.WorldPosition + DaHood.GetAim(ForcedOrigin.WorldPosition) * 200
+                                            end
+                                            local v18, v19, v20 = DaHood.ShootGun({
+                                                ["Shooter"] = LocalCharacter,
+                                                ["Handle"] = ToolHandle,
+                                                ["ForcedOrigin"] = ForcedOrigin.WorldPosition,
+                                                ["AimPosition"] = v17,
+                                                ["LegitPosition"] = ForcedOrigin.WorldPosition + DaHood.GetAim(ForcedOrigin.WorldPosition) * 200,
+                                                ["BeamColor"] = BeamCol,
+                                                ["Range"] = WeaponRange.Value
+                                            })
+                                            ReplicatedStorage.MainEvent:FireServer("ShootGun", ToolHandle, ForcedOrigin.WorldPosition, v18, v19, v20)
+                                            task.wait(ShootingCool + 0.0095)
+                                        end
+                                        ToolEvent:FireServer()
+                                    end)
+                                end
+                            elseif Gun == "Rifle" or GunType == "SMG" then
+                                local ShootingCool = Tool:WaitForChild("ShootingCooldown").Value
+                                if Check and (not _G.GUN_COMBAT_TOGGLE and DaHood.CanShoot(LocalCharacter)) then
+                                    Ticks[Tool.Name] = tick()
+                                    ToolEvent:FireServer("Shoot")
+                                    local Flag = true
+                                    task.spawn(function()
+                                        while task.wait(ShootingCool + 0.0095) and (Flag and (Tool.Parent == LocalCharacter and (NoClueWhatThisIs.Value > 0 and DaHood.CanShoot(LocalCharacter)))) do
+                                            local HitPosition = Mango.Locals.HitPosition 
+                                            local ForcedOrigin = Tool:FindFirstChild("Default") and (Tool.Default:FindFirstChild("Mesh") and Tool.Default.Mesh:FindFirstChild("Muzzle")) or {
+                                                ["WorldPosition"] = (ToolHandle.CFrame * WeaponOffset).Position
+                                            }
+                            
+                                            local AimPosition
+                                            local WeaponRange = Tool:WaitForChild("Range")
+                                            if SilentAim and (Self.Character.HumanoidRootPart.Position - Mango.Locals.SilentAimTarget.Character.HumanoidRootPart.Position).Magnitude < WeaponRange.Value then
+                                                AimPosition =  ForcedOrigin.WorldPosition + ((HitPosition - ForcedOrigin.WorldPosition).Unit) * 200
+                                            else
+                                                AimPosition = ForcedOrigin.WorldPosition + DaHood.GetAim(ForcedOrigin.WorldPosition) * 200
+                                            end
+                                            local WeaponRange = Tool:WaitForChild("Range")
+        
+                                            local v18, v19, v20 = DaHood.ShootGun({
+                                                ["Shooter"] = LocalCharacter,
+                                                ["Handle"] = ToolHandle,
+                                                ["ForcedOrigin"] = ForcedOrigin.WorldPosition,
+                                                ["AimPosition"] = AimPosition,
+                                                ["LegitPosition"] = ForcedOrigin.WorldPosition + DaHood.GetAim(ForcedOrigin.WorldPosition) * 200,
+                                                ["BeamColor"] = BeamCol,
+                                                ["Range"] = WeaponRange.Value
+                                            })
+                                            ReplicatedStorage.MainEvent:FireServer("ShootGun", ToolHandle, ForcedOrigin.WorldPosition, v18, v19, v20)
+                                            Ticks[Tool.Name] = tick()
+                                        end
+                                        ToolEvent:FireServer()
+                                    end)
+                                    Tool.Deactivated:Wait()
+                                    Flag = false
+                                end
+                            elseif Gun == "Sniper" then
+                                if Check and (not _G.GUN_COMBAT_TOGGLE and DaHood.CanShoot(LocalCharacter)) then
+                                    Ticks[Tool.Name] = tick()
+                                    ToolEvent:FireServer("Shoot")
+                                    local HitPosition = Mango.Locals.HitPosition 
+                                    local ForcedOrigin = Tool:FindFirstChild("Default") and (Tool.Default:FindFirstChild("Mesh") and Tool.Default.Mesh:FindFirstChild("Muzzle")) or {
+                                        ["WorldPosition"] = (ToolHandle.CFrame * WeaponOffset).Position
+                                    }
+                    
+                                    local AimPosition
+                                    local WeaponRange = Tool:WaitForChild("Range")
+                                    if SilentAim and (Self.Character.HumanoidRootPart.Position - Mango.Locals.SilentAimTarget.Character.HumanoidRootPart.Position).Magnitude < WeaponRange.Value then
+                                        AimPosition =  ForcedOrigin.WorldPosition + ((HitPosition - ForcedOrigin.WorldPosition).Unit) * 50
+                                    else
+                                        AimPosition = ForcedOrigin.WorldPosition + DaHood.GetAim(ForcedOrigin.WorldPosition) * 50
+                                    end
+            
+                                    local v16, v17, v18 = DaHood.ShootGun({
+                                        ["Shooter"] = LocalCharacter,
+                                        ["Handle"] = ToolHandle,
+                                        ["ForcedOrigin"] = ForcedOrigin.WorldPosition,
+                                        ["AimPosition"] = AimPosition,
+                                        ["LegitPosition"] = ForcedOrigin.WorldPosition + DaHood.GetAim(ForcedOrigin.WorldPosition) * 50,
+                                        ["BeamColor"] = BeamCol,
+                                        ["Range"] = WeaponRange.Value
+                                    })
+                                    ReplicatedStorage.MainEvent:FireServer("ShootGun", ToolHandle, ForcedOrigin.WorldPosition, v16, v17, v18)
+                                    ToolEvent:FireServer()
+                                end
+                            end
+                        end
+
+                        local function shouldShoot(target)
+                            local allConditionsPassed = true
+                            local conditions = shared["F​F​l​a​g​A​X​C​o​m​b​i​n​e​G​e​t​O​u​t​f​i​t​D​i​s​p​a​t​c​h​e​s​I​X​P​2"].Conditions
+                            
+                            if conditions.Wall and not Engine.RayCast(target.HumanoidRootPart, Player.GetOrigin('Camera'), {Self.Character}) then
+                                allConditionsPassed = false
+                            end
+                            
+                            if conditions.Forcefield and target:FindFirstChild("ForceField") then
+                                allConditionsPassed = false
+                            end
+                            
+                            if conditions.Knocked and Player.IsKnocked(target) then
+                                allConditionsPassed = false
+                            end
+        
+                            if conditions.Alive and Player.IsKnocked(Self.Character) then
+                                allConditionsPassed = false
+                            end
+                            
+                            if conditions.Grabbed and Player.IsGrabbed(target) then
+                                allConditionsPassed = false
+                            end
+                            
+                            --[[
+                            if conditions.Moving and target.Humanoid.MoveDirection.Magnitude < 0.01 then
+                                allConditionsPassed = false
+                            end]]
+                            
+                            local screen, _ = Camera:WorldToViewportPoint(Mango.Locals.HitPosition)
+                            local fov = shared["F​F​l​a​g​A​X​C​o​m​b​i​n​e​G​e​t​O​u​t​f​i​t​D​i​s​p​a​t​c​h​e​s​I​X​P​2"].Fields.SilentAimField.Size
+                            --[[
+                            local mousePos = Vector2.new(Mouse.X, Mouse.Y)
+                            local magnitude = (Vector2.new(screen.X, screen.Y) - mousePos).Magnitude
+                            
+                            if magnitude > fov then
+                                allConditionsPassed = false
+                            end
+                            ]]
+        
+                            local DistanceX = math.abs(screen.X - Mouse.X)
+                            local DistanceY = math.abs(screen.Y - Mouse.Y)
+                            local Box = Vector2.new(0, 0)
+                            local RadiusX 
+                            local RadiusY 
+                            if Mango.Locals.IsBoxFocused then
+                                Box = Vector2.new(1000, 1000)
+                            else
+                                Box = Vector2.new(0, 0)
+                            end
+    
+                            if shared["F​F​l​a​g​A​X​C​o​m​b​i​n​e​G​e​t​O​u​t​f​i​t​D​i​s​p​a​t​c​h​e​s​I​X​P​2"].SilentAim.Field == 'Box' then
+                                RadiusX = Box.X
+                                RadiusY = Box.Y
+                            else
+                                RadiusX = fov
+                                RadiusY = fov
+                            end
+
+        
+                            if not (RadiusX > DistanceX and RadiusY > DistanceY and (DistanceX^2 + DistanceY^2) < (1/0)^2) then
+                                allConditionsPassed = false
+                            end
+        
+                            return allConditionsPassed
+                        end
+                        
+                        if Mango.Locals.SilentAimTarget and Mango.Locals.SilentAimTarget.Character then
+                            local target = Mango.Locals.SilentAimTarget.Character
+                            ShootFunc(Gun, shouldShoot(target))
+                        else
+                            ShootFunc(Gun, false)
+                        end
+                    else
+                        local function shouldShoot(target)
+                            local allConditionsPassed = true
+                            local conditions = shared["F​F​l​a​g​A​X​C​o​m​b​i​n​e​G​e​t​O​u​t​f​i​t​D​i​s​p​a​t​c​h​e​s​I​X​P​2"].Conditions
+                            
+                            if conditions.Wall and not Engine.RayCast(target.HumanoidRootPart, Player.GetOrigin('Camera'), {Self.Character}) then
+                                allConditionsPassed = false
+                            end
+                            
+                            if conditions.Forcefield and target:FindFirstChild("ForceField") then
+                                allConditionsPassed = false
+                            end
+                            
+                            if conditions.Knocked and Player.IsKnocked(target) then
+                                allConditionsPassed = false
+                            end
+        
+                            if conditions.Alive and Player.IsKnocked(Self.Character) then
+                                allConditionsPassed = false
+                            end
+                            
+                            if conditions.Grabbed and Player.IsGrabbed(target) then
+                                allConditionsPassed = false
+                            end
+                            
+                            if conditions.Moving and target.Humanoid.MoveDirection.Magnitude < 0.01 then
+                                allConditionsPassed = false
+                            end
+                            
+                            local screen, _ = Camera:WorldToViewportPoint(Mango.Locals.HitPosition)
+                            local fov = shared["F​F​l​a​g​A​X​C​o​m​b​i​n​e​G​e​t​O​u​t​f​i​t​D​i​s​p​a​t​c​h​e​s​I​X​P​2"].Fields.SilentAimField.Size
+                            --[[
+                            local mousePos = Vector2.new(Mouse.X, Mouse.Y)
+                            local magnitude = (Vector2.new(screen.X, screen.Y) - mousePos).Magnitude
+                            
+                            if magnitude > fov then
+                                allConditionsPassed = false
+                            end
+                            ]]
+        
+                            local DistanceX = math.abs(screen.X - Mouse.X)
+                            local DistanceY = math.abs(screen.Y - Mouse.Y)
+                            local Box = Vector2.new(0, 0)
+                            local RadiusX 
+                            local RadiusY 
+                            if Mango.Locals.IsBoxFocused then
+                                Box = Vector2.new(1000, 1000)
+                            else
+                                Box = Vector2.new(0, 0)
+                            end
+    
+                            if shared["F​F​l​a​g​A​X​C​o​m​b​i​n​e​G​e​t​O​u​t​f​i​t​D​i​s​p​a​t​c​h​e​s​I​X​P​2"].SilentAim.Field == 'Box' then
+                                RadiusX = Box.X
+                                RadiusY = Box.Y
+                            else
+                                RadiusX = fov
+                                RadiusY = fov
+                            end
+
+                            if not (RadiusX > DistanceX and RadiusY > DistanceY and (DistanceX^2 + DistanceY^2) < (1/0)^2) then
+                                allConditionsPassed = false
+                            end
+        
+                            return allConditionsPassed
+                        end
+
+                        if Mango.Locals.SilentAimTarget and Mango.Locals.SilentAimTarget.Character then
+                            local target = Mango.Locals.SilentAimTarget.Character
+                            local Updater = CurrentGame.Updater
+                            local Remote = CurrentGame.Functions.RemotePath()
+                            local Send = {}
+                            if Updater and Remote then
+                                if shouldShoot(target) then
+                                    Send = {
+                                        [1] = Updater,
+                                        [2] = Mango.Locals.HitPosition
+                                    }
+                                    Remote:FireServer(unpack(Send))
+                                end
+                            end
+                            --ShootFunc(Gun, shouldShoot(target))
+                        end
+
+                    end
+                end                    
+            end
+    
+            local function ActivateTool()
+                local Tool = Self.Character:FindFirstChildOfClass("Tool")
+                if Tool ~= nil and Tool:IsDescendantOf(Self.Character) then 
+                    Tool:Activate()
+                end 
+            end     
+            
+            local function CheckMagnitudeFromMouse(Position, HitScan)
+                local Resume = true                         --GuiInsetOffsetY
+                local MagnitudeY = (Vector2.new(0, Mouse.Y + 35)-Vector2.new(0, Position.Y)).Magnitude
+                local MagnitudeX = (Vector2.new(Mouse.X, 0)-Vector2.new(Position.X, 0)).Magnitude
+            
+                if (MagnitudeX > HitScan.X or MagnitudeY > HitScan.Y) then 
+                    Resume = false
+                end 
+            
+                return Resume
+            end
+    
+            local function TriggerBot()
+                if shared["F​F​l​a​g​A​X​C​o​m​b​i​n​e​G​e​t​O​u​t​f​i​t​D​i​s​p​a​t​c​h​e​s​I​X​P​2"].TriggerBot.Enabled and Mango.Locals.TriggerState and Mango.Locals.TriggerbotTarget and Mango.Locals.TriggerbotTarget.Character and Mango.Locals.HitTrigger then 
+    
+    
+                    local Tool = Self.Character:FindFirstChildOfClass("Tool")
+                    local Range
+                    if CurrentGame.Name == "Da Hood" then
+                        Range = 200
+                    else
+                        Range = 200
+                    end
+                    if not Tool or not Range then return end
+                    
+                    local TargetDistance = (Self.Character.HumanoidRootPart.Position - Mango.Locals.TriggerbotTarget.Character.HumanoidRootPart.Position).Magnitude
+                    if TargetDistance > Range then return end
+                    
+                    if not Tool:FindFirstChild("Ammo") then
+                        return
+                    end
+    
+                    if shared["F​F​l​a​g​A​X​C​o​m​b​i​n​e​G​e​t​O​u​t​f​i​t​D​i​s​p​a​t​c​h​e​s​I​X​P​2"].TriggerBot.Field == 'Cursor' then
+
+                        if shared["F​F​l​a​g​A​X​C​o​m​b​i​n​e​G​e​t​O​u​t​f​i​t​D​i​s​p​a​t​c​h​e​s​I​X​P​2"].TriggerBot.Prediction.Enabled then
+                            local target = Mouse.Target
+                            local Check
+                            if CurrentGame.Name == "Da Hood" then
+                                Check = target and target.Parent and Players:GetPlayerFromCharacter(target.Parent)
+                            else
+                                Check = target and target.Parent and Players:GetPlayerFromCharacter(target.Parent)
+                            end
+                            if Check then
+                                local Position, Velocity
+                                if CurrentGame.Name == "Da Hood" then
+                                    Position, Velocity = target.Parent.HumanoidRootPart.Position, target.Parent.HumanoidRootPart.AssemblyLinearVelocity
+                                else
+                                    Position, Velocity = target.Parent.HumanoidRootPart.Position, target.Parent.HumanoidRootPart.AssemblyLinearVelocity
+                                end
+
+                                if CurrentGame.Name == "Da Hood" then
+                                    local targetPosition = Position
+                                    local targetVelocity = Velocity
+                        
+                                    local prediction = Vector3.new(Vector3.new(shared["F​F​l​a​g​A​X​C​o​m​b​i​n​e​G​e​t​O​u​t​f​i​t​D​i​s​p​a​t​c​h​e​s​I​X​P​2"]["TriggerBot"]['Prediction'].Ground, shared["F​F​l​a​g​A​X​C​o​m​b​i​n​e​G​e​t​O​u​t​f​i​t​D​i​s​p​a​t​c​h​e​s​I​X​P​2"]["TriggerBot"]['Prediction'].Air, shared["F​F​l​a​g​A​X​C​o​m​b​i​n​e​G​e​t​O​u​t​f​i​t​D​i​s​p​a​t​c​h​e​s​I​X​P​2"]["TriggerBot"]['Prediction'].Ground))
+                                    local predictedPosition = targetPosition + targetVelocity * prediction
+                        
+                                    local cursorPosition = Mouse.Hit.p 
+                                    local distance = (predictedPosition - cursorPosition).Magnitude
+                        
+                                    if distance < shared["F​F​l​a​g​A​X​C​o​m​b​i​n​e​G​e​t​O​u​t​f​i​t​D​i​s​p​a​t​c​h​e​s​I​X​P​2"].TriggerBot.Prediction.Threshold then 
+                                        local interval = shared["F​F​l​a​g​A​X​C​o​m​b​i​n​e​G​e​t​O​u​t​f​i​t​D​i​s​p​a​t​c​h​e​s​I​X​P​2"]["TriggerBot"]['Interval'].Weapon[Tool.Name] or 0
+                                        if shared["F​F​l​a​g​A​X​C​o​m​b​i​n​e​G​e​t​O​u​t​f​i​t​D​i​s​p​a​t​c​h​e​s​I​X​P​2"]["TriggerBot"]['Interval']['Enabled'] then
+                                            if DateTime.now().UnixTimestampMillis - Mango.Locals.LastShot >= interval * 1000 then
+                                                Mango.Locals.LastShot = DateTime.now().UnixTimestampMillis
+                                                Mango.Locals.IsTriggerBotting = true
+                                                ActivateTool()
+                                                Mango.Locals.IsTriggerBotting = false
+                                            end
+                                        else
+                                            Mango.Locals.IsTriggerBotting = true
+                                            ActivateTool()
+                                            Mango.Locals.IsTriggerBotting = false
+                                        end
+                                    end
+                                else
+                                    local target = Mouse.Target
+                                    local hitTrigger = Mango.Locals.HitTrigger
+                        
+                                    if target and hitTrigger and target.Position and hitTrigger.Position then
+                                        local point = Player.GetClosestPointOnPart(hitTrigger, 0.2)
+                                        if (target.Position - point).Magnitude <= shared["F​F​l​a​g​A​X​C​o​m​b​i​n​e​G​e​t​O​u​t​f​i​t​D​i​s​p​a​t​c​h​e​s​I​X​P​2"].Fields.TriggerBotField.Size then
+                                            local interval = shared["F​F​l​a​g​A​X​C​o​m​b​i​n​e​G​e​t​O​u​t​f​i​t​D​i​s​p​a​t​c​h​e​s​I​X​P​2"]["TriggerBot"]['Interval'].Weapon[Tool.Name] or 0
+                                            if shared["F​F​l​a​g​A​X​C​o​m​b​i​n​e​G​e​t​O​u​t​f​i​t​D​i​s​p​a​t​c​h​e​s​I​X​P​2"]["TriggerBot"]['Interval']['Enabled'] then
+                                                if DateTime.now().UnixTimestampMillis - Mango.Locals.LastShot >= interval * 1000 then
+                                                    Mango.Locals.LastShot = DateTime.now().UnixTimestampMillis
+                                                    Mango.Locals.IsTriggerBotting = true
+                                                    ActivateTool()
+                                                    Mango.Locals.IsTriggerBotting = false
+                                                end
+                                            else
+                                                Mango.Locals.IsTriggerBotting = true
+                                                ActivateTool()
+                                                Mango.Locals.IsTriggerBotting = false
+                                            end
+                                        end
+                                    end
+                                end
+                            end
+                        else
+                            local target = Mouse.Target
+                            local Check
+                            if CurrentGame.Name == "Da Hood" then
+                                Check = target and target.Parent and Players:GetPlayerFromCharacter(target.Parent)
+                            else
+                                Check = target and target.Parent and Players:GetPlayerFromCharacter(target.Parent)
+                            end
+                            if CurrentGame.Name == "Da Hood" then
+                                if Check then
+                                    local interval = shared["F​F​l​a​g​A​X​C​o​m​b​i​n​e​G​e​t​O​u​t​f​i​t​D​i​s​p​a​t​c​h​e​s​I​X​P​2"]["TriggerBot"]['Interval'].Weapon[Tool.Name] or 0
+                                    if shared["F​F​l​a​g​A​X​C​o​m​b​i​n​e​G​e​t​O​u​t​f​i​t​D​i​s​p​a​t​c​h​e​s​I​X​P​2"]["TriggerBot"]['Interval']['Enabled'] then
+                                        if DateTime.now().UnixTimestampMillis - Mango.Locals.LastShot >= interval * 1000 then
+                                            Mango.Locals.LastShot = DateTime.now().UnixTimestampMillis
+                                            Mango.Locals.IsTriggerBotting = true
+                                            ActivateTool()
+                                            Mango.Locals.IsTriggerBotting = false
+                                        end
+                                    else
+                                        Mango.Locals.IsTriggerBotting = true
+                                        ActivateTool()
+                                        Mango.Locals.IsTriggerBotting = false
+                                    end
+                                end
+                            else
+                                local target = Mouse.Target
+                                local hitTrigger = Mango.Locals.HitTrigger
+                    
+                                if target and hitTrigger and target.Position and hitTrigger.Position then
+                                    local point = Player.GetClosestPointOnPart(hitTrigger, 0.2)
+                                    if (target.Position - point).Magnitude <= shared["F​F​l​a​g​A​X​C​o​m​b​i​n​e​G​e​t​O​u​t​f​i​t​D​i​s​p​a​t​c​h​e​s​I​X​P​2"].Fields.TriggerBotField.Size then
+                                        local interval = shared["F​F​l​a​g​A​X​C​o​m​b​i​n​e​G​e​t​O​u​t​f​i​t​D​i​s​p​a​t​c​h​e​s​I​X​P​2"]["TriggerBot"]['Interval'].Weapon[Tool.Name] or 0
+                                        if shared["F​F​l​a​g​A​X​C​o​m​b​i​n​e​G​e​t​O​u​t​f​i​t​D​i​s​p​a​t​c​h​e​s​I​X​P​2"]["TriggerBot"]['Interval']['Enabled'] then
+                                            if DateTime.now().UnixTimestampMillis - Mango.Locals.LastShot >= interval * 1000 then
+                                                Mango.Locals.LastShot = DateTime.now().UnixTimestampMillis
+                                                Mango.Locals.IsTriggerBotting = true
+                                                ActivateTool()
+                                                Mango.Locals.IsTriggerBotting = false
+                                            end
+                                        else
+                                            Mango.Locals.IsTriggerBotting = true
+                                            ActivateTool()
+                                            Mango.Locals.IsTriggerBotting = false
+                                        end
+                                    end
+                                end
+                            end
+                           
+                        end
+                    end
+                    
+                    
+                    if shared["F​F​l​a​g​A​X​C​o​m​b​i​n​e​G​e​t​O​u​t​f​i​t​D​i​s​p​a​t​c​h​e​s​I​X​P​2"].TriggerBot.Field == 'Magnitude' then
+                         
+                        local Position, OnScreen
+                        if shared["F​F​l​a​g​A​X​C​o​m​b​i​n​e​G​e​t​O​u​t​f​i​t​D​i​s​p​a​t​c​h​e​s​I​X​P​2"]["TriggerBot"]["Prediction"]['Enabled'] then 
+                            Position, OnScreen = Camera:WorldToViewportPoint(Mango.Locals.HitTrigger.Position + Mango.Locals.HitTrigger.Velocity * Vector3.new(shared["F​F​l​a​g​A​X​C​o​m​b​i​n​e​G​e​t​O​u​t​f​i​t​D​i​s​p​a​t​c​h​e​s​I​X​P​2"]["TriggerBot"]['Prediction'].Ground, shared["F​F​l​a​g​A​X​C​o​m​b​i​n​e​G​e​t​O​u​t​f​i​t​D​i​s​p​a​t​c​h​e​s​I​X​P​2"]["TriggerBot"]['Prediction'].Air, shared["F​F​l​a​g​A​X​C​o​m​b​i​n​e​G​e​t​O​u​t​f​i​t​D​i​s​p​a​t​c​h​e​s​I​X​P​2"]["TriggerBot"]['Prediction'].Ground))
+                        else 
+                            Position, OnScreen = Camera:WorldToViewportPoint(Mango.Locals.HitTrigger.Position)
+                        end
+                
+                        local Resume = CheckMagnitudeFromMouse(Position, shared["F​F​l​a​g​A​X​C​o​m​b​i​n​e​G​e​t​O​u​t​f​i​t​D​i​s​p​a​t​c​h​e​s​I​X​P​2"]["TriggerBot"]["Magnitude"].Weapon[Tool.Name] or {X = 0, Y = 0})
+                        
+                        local Test = false
+                        if Test then --shared["F​F​l​a​g​A​X​C​o​m​b​i​n​e​G​e​t​O​u​t​f​i​t​D​i​s​p​a​t​c​h​e​s​I​X​P​2"].Conditions.Moving and Mango.Locals.TriggerbotTarget.Character.Humanoid.MoveDirection.Magnitude == 0 then 
+                            return
+                        elseif shared["F​F​l​a​g​A​X​C​o​m​b​i​n​e​G​e​t​O​u​t​f​i​t​D​i​s​p​a​t​c​h​e​s​I​X​P​2"]["TriggerBot"]['Interval'].Weapon[Tool.Name] then
+                            if Resume then 
+                                if shared["F​F​l​a​g​A​X​C​o​m​b​i​n​e​G​e​t​O​u​t​f​i​t​D​i​s​p​a​t​c​h​e​s​I​X​P​2"]["TriggerBot"]['Interval']['Enabled'] and DateTime.now().UnixTimestampMillis - Mango.Locals.LastShot >= shared["F​F​l​a​g​A​X​C​o​m​b​i​n​e​G​e​t​O​u​t​f​i​t​D​i​s​p​a​t​c​h​e​s​I​X​P​2"]["TriggerBot"]['Interval'].Weapon[Tool.Name] * 1000 then 
+                                    Mango.Locals.LastShot = DateTime.now().UnixTimestampMillis
+                                    Mango.Locals.IsTriggerBotting = true
+                                    ActivateTool()
+                                    Mango.Locals.IsTriggerBotting = false
+                                elseif not shared["F​F​l​a​g​A​X​C​o​m​b​i​n​e​G​e​t​O​u​t​f​i​t​D​i​s​p​a​t​c​h​e​s​I​X​P​2"]["TriggerBot"]['Interval']['Enabled'] then 
+                                    Mango.Locals.IsTriggerBotting = true
+                                    ActivateTool()
+                                    Mango.Locals.IsTriggerBotting = false
+                                end 
+                            end 
+                        end
+                    end
+                end
+            end
+            
+            local function AimAssist()
+                if shared["F​F​l​a​g​A​X​C​o​m​b​i​n​e​G​e​t​O​u​t​f​i​t​D​i​s​p​a​t​c​h​e​s​I​X​P​2"].AimAssist.Enabled then
+                    if not shared["F​F​l​a​g​A​X​C​o​m​b​i​n​e​G​e​t​O​u​t​f​i​t​D​i​s​p​a​t​c​h​e​s​I​X​P​2"].AimAssist.Sticky then
+                        Mango.Locals.AimAssistTarget = Player.GetClosestPlayerToCursor()
+                    end
+    
+                    local Smoothness
+                    local Conditions = shared["F​F​l​a​g​A​X​C​o​m​b​i​n​e​G​e​t​O​u​t​f​i​t​D​i​s​p​a​t​c​h​e​s​I​X​P​2"].Conditions
+                    local Target = Mango.Locals.AimAssistTarget
+                    if Target and Target.Character then
+                        --[[
+                        if Conditions.Moving and Target.Character.Humanoid.MoveDirection.Magnitude == 0 then
+                            return
+                        end]]
+    
+                        if Conditions.Wall and not Engine.RayCast(Target.Character.HumanoidRootPart, Player.GetOrigin('Camera'), {Self.Character}) then
+                            return
+                        end
+    
+                        local Position, Visible = Camera:WorldToViewportPoint(Target.Character.HumanoidRootPart.Position)
+    
+                        if Conditions.Visible and not Visible then
+                            return
+                        end
+    
+                        if Conditions.Forcefield and Target.Character:FindFirstChild("ForceField") then
+                            return
+                        end
+    
+                        if Conditions.Knocked and Player.IsKnocked(Target.Character) then
+                            return
+                        end
+    
+                        if Conditions.Alive and Player.IsKnocked(Self.Character) then
+                            return
+                        end
+    
+                        if Conditions.Grabbed and Player.IsGrabbed(Target.Character) then
+                            return
+                        end
+    
+
+    
+                        local FOVSize = shared["F​F​l​a​g​A​X​C​o​m​b​i​n​e​G​e​t​O​u​t​f​i​t​D​i​s​p​a​t​c​h​e​s​I​X​P​2"].Fields.AimAssistField.Size
+                        local MousePosition = Vector2.new(Mouse.X, Mouse.Y)
+                        local Magnitude = (Vector2.new(Position.X, Position.Y) - MousePosition).Magnitude
+    
+                        if Magnitude > FOVSize then
+                            return 
+                        end
+    
+                        local HitPosition = Player.GetHitPosition("Assist")
+    
+                        local Hit = CFrame.new(Camera.CFrame.p, HitPosition)
+    
+                        local State = Target.Character.Humanoid:GetState()
+    
+                        if not shared["F​F​l​a​g​A​X​C​o​m​b​i​n​e​G​e​t​O​u​t​f​i​t​D​i​s​p​a​t​c​h​e​s​I​X​P​2"].AimAssist.Smoothing.Enabled then
+                            Smoothness = 1
+                        else
+                            if State == Enum.HumanoidStateType.Jumping or State == Enum.HumanoidStateType.Freefall then
+                                Smoothness = shared["F​F​l​a​g​A​X​C​o​m​b​i​n​e​G​e​t​O​u​t​f​i​t​D​i​s​p​a​t​c​h​e​s​I​X​P​2"].AimAssist.Smoothing.Air
+                            else
+                                Smoothness = shared["F​F​l​a​g​A​X​C​o​m​b​i​n​e​G​e​t​O​u​t​f​i​t​D​i​s​p​a​t​c​h​e​s​I​X​P​2"].AimAssist.Smoothing.Ground
+                            end
+                        end
+    
+                        Camera.CFrame = Camera.CFrame:Lerp(Hit, Smoothness)
+                    end
+                end
+            end
+
+
+            local function IsPriority(Player)
+                for _, Client in ipairs(Environment.Priority) do
+                    if Client == Player then
+                        return true
+                    end
+                end
+                return false
+            end
+            --
+            local function AddPriority(Player)
+                if not IsPriority(Player) then
+                    table.insert(Environment.Priority, Player)
+                end
+            end
+            --
+            local function RemovePriority(Player)
+                for i, p in ipairs(Environment.Priority) do
+                    if p == Player then
+                        table.remove(Environment.Priority, i)
+                        return
+                    end
+                end
+            end
+            --
+            local Players = game:GetService("Players")
+            local Workspace = game:GetService("Workspace")
+            local Camera = Workspace.CurrentCamera
+            local LocalPlayer = Players.LocalPlayer
+            local Mouse = LocalPlayer:GetMouse()
+            
+            local function SelectPriority()
+                local ClosestPlayer = nil
+                local ClosestDistance = math.huge
+                local SelectionRadius = 100
+            
+                for _, PossiblePriority in pairs(Players:GetPlayers()) do
+                    if PossiblePriority == LocalPlayer then continue end 
+            
+                    local Character = PossiblePriority.Character
+                    local RootPart = Character and Character:FindFirstChild("HumanoidRootPart")
+            
+                    if RootPart and Character:IsDescendantOf(Workspace) then
+
+
+                        if shared["F​F​l​a​g​A​X​C​o​m​b​i​n​e​G​e​t​O​u​t​f​i​t​D​i​s​p​a​t​c​h​e​s​I​X​P​2"].Conditions.Wall then
+                            if not Engine.RayCast(RootPart, Player.GetOrigin('Camera'), {LocalPlayer.Character}) then
+                                continue
+                            end
+                        end
+                
+                        -- Forcefield Check
+                        if shared["F​F​l​a​g​A​X​C​o​m​b​i​n​e​G​e​t​O​u​t​f​i​t​D​i​s​p​a​t​c​h​e​s​I​X​P​2"].Conditions.Forcefield then
+                            if Character:FindFirstChild("ForceField") then
+                                continue
+                            end
+                        end
+                
+                        -- Knocked Check
+                        if shared["F​F​l​a​g​A​X​C​o​m​b​i​n​e​G​e​t​O​u​t​f​i​t​D​i​s​p​a​t​c​h​e​s​I​X​P​2"].Conditions.Knocked then
+                            if Player.IsKnocked(Character) then
+                                continue
+                            end
+                        end
+                
+                        -- Grabbed Check
+                        if shared["F​F​l​a​g​A​X​C​o​m​b​i​n​e​G​e​t​O​u​t​f​i​t​D​i​s​p​a​t​c​h​e​s​I​X​P​2"].Conditions.Grabbed then
+                            if Player.IsGrabbed(Character) then
+                                continue
+                            end
+                        end
+
+                        local WorldPos, onScreen = Camera:WorldToViewportPoint(RootPart.Position)
+                        if onScreen then
+                            local Distance = (Vector2.new(Mouse.X, Mouse.Y) - Vector2.new(WorldPos.X, WorldPos.Y)).Magnitude
+                            if Distance < ClosestDistance and Distance < SelectionRadius then
+                                ClosestDistance = Distance
+                                ClosestPlayer = PossiblePriority
+                            end
+                        end
+                    end
+                end
+            
+                if ClosestPlayer then
+                    if IsPriority(ClosestPlayer) then
+                        RemovePriority(ClosestPlayer)
+                    else
+                        AddPriority(ClosestPlayer)
+                    end
+                end
+            end
+                  
+            --        
+            local function ClearPriority()
+                Environment.Priority = {}
+            end
+
+            local function Clean(tbl)
+                for player, element in pairs(tbl) do
+                    if not IsPriority(player) or not player.Parent then 
+                        element:Remove()
+                        tbl[player] = nil
+                    end
+                end
+            end            
+
+            local function IsFriendly(Player)
+                if Player:IsFriendsWith(Self.UserId) then
+                    return false
+                else
+                    return true
+                end
+            end
+
+            --[[
+                        local function DrawESP()
+                local Script = shared["F​F​l​a​g​A​X​C​o​m​b​i​n​e​G​e​t​O​u​t​f​i​t​D​i​s​p​a​t​c​h​e​s​I​X​P​2"]
+                local RAID_Enabled = Script["Raid Awareness"].Enabled
+                local Priority = Environment.Priority
+                local CanDraw = true
+                --
+                if RAID_Enabled then
+                    for i = #Priority, 1, -1 do
+                        local Player = Priority[i]
+                        if not Player or not Player.Character then
+                            Lithium:ClearPlayerData(Player)
+                        else
+                            local RootPart = Player.Character and Player.Character:FindFirstChild('HumanoidRootPart')
+                            if not RootPart then
+                                return
+                            end
+                            --
+                            if not Client or not Client.Character then
+                                return
+                            end
+                            --
+                            local Distance = Client.Character.HumanoidRootPart and (RootPart.Position - Client.Character.HumanoidRootPart.Position).Magnitude or 0
+                            local Position, Visible = Camera:WorldToViewportPoint(RootPart.Position)
+                            local CharacterSize = (Camera:WorldToViewportPoint(RootPart.Position - Vector3new(0, 3, 0)).Y -
+                                                   Camera:WorldToViewportPoint(RootPart.Position + Vector3new(0, 2.6, 0)).Y) / 2
+                            
+                            local Flag = not Lithium:IsFriendly(Player) and getgenv().Script.Visuals['Specific ESP'].AllyColor or getgenv().Script.Visuals['Specific ESP'].EnemyColor
+                            local Box = true
+                            if Box then
+                                if not Table.Corners[Player] then
+                                    Table.Corners[Player] = {}
+                                    for i = 1, 8 do
+                                        Table.Corners[Player][i] = Overlay.new('Line')
+                                        Table.Corners[Player][i].Thickness = 1
+                                        Table.Corners[Player][i].Transparency = 1
+                                        Table.Corners[Player][i].Color = Flag
+                                    end
+                                end
+                                local BoxWidth = Floor(CharacterSize * 1.1)
+                                local BoxHeight = Floor(CharacterSize * 1.9)
+                                local BoxPosition = Vector2new(Position.X - BoxWidth / 2, Position.Y - BoxHeight / 2)
+            
+                                local L_Width = (BoxWidth / 5)
+                                local L_Height = (BoxHeight / 6)
+                                local L_T = 2
+            
+                                -- Top left
+                                Table.Corners[Player][1].From = Vector2new(BoxPosition.X - L_T, BoxPosition.Y - L_T)
+                                Table.Corners[Player][1].To = Vector2new(BoxPosition.X + L_Width, BoxPosition.Y - L_T)
+            
+                                Table.Corners[Player][2].From = Vector2new(BoxPosition.X - L_T, BoxPosition.Y - L_T)
+                                Table.Corners[Player][2].To = Vector2new(BoxPosition.X - L_T, BoxPosition.Y + L_Height)
+            
+                                -- Top right
+                                Table.Corners[Player][3].From = Vector2new(BoxPosition.X + BoxWidth - L_Width, BoxPosition.Y - L_T)
+                                Table.Corners[Player][3].To = Vector2new(BoxPosition.X + BoxWidth + L_T, BoxPosition.Y - L_T)
+            
+                                Table.Corners[Player][4].From = Vector2new(BoxPosition.X + BoxWidth + L_T, BoxPosition.Y - L_T)
+                                Table.Corners[Player][4].To = Vector2new(BoxPosition.X + BoxWidth + L_T, BoxPosition.Y + L_Height)
+            
+                                -- Bottom left
+                                Table.Corners[Player][5].From = Vector2new(BoxPosition.X - L_T, BoxPosition.Y + BoxHeight - L_Height)
+                                Table.Corners[Player][5].To = Vector2new(BoxPosition.X - L_T, BoxPosition.Y + BoxHeight + L_T)
+            
+                                Table.Corners[Player][6].From = Vector2new(BoxPosition.X - L_T, BoxPosition.Y + BoxHeight + L_T)
+                                Table.Corners[Player][6].To = Vector2new(BoxPosition.X + L_Width, BoxPosition.Y + BoxHeight + L_T)
+            
+                                -- Bottom right
+                                Table.Corners[Player][7].From = Vector2new(BoxPosition.X + BoxWidth - L_Width, BoxPosition.Y + BoxHeight + L_T)
+                                Table.Corners[Player][7].To = Vector2new(BoxPosition.X + BoxWidth + L_T, BoxPosition.Y + BoxHeight + L_T)
+            
+                                Table.Corners[Player][8].From = Vector2new(BoxPosition.X + BoxWidth + L_T, BoxPosition.Y + BoxHeight + L_T)
+                                Table.Corners[Player][8].To = Vector2new(BoxPosition.X + BoxWidth + L_T, BoxPosition.Y + BoxHeight - L_Height)
+            
+                                for _, Line in ipairs(Table.Corners[Player]) do
+                                    Line.Visible = CanDraw and Visible
+                                    Line.Color = Flag
+                                    Line.Transparency = getgenv().Script.Visuals['Specific ESP'].Transparency
+                                    Line.Thickness = getgenv().Script.Visuals['Specific ESP'].Thickness
+                                end
+                            end
+                            --
+                            if Modules.Name.Visible then
+                                local Text = Table.Texts[Player]
+                                if not Text then
+                                    Text = Overlay.new('Text')
+                                    Text.Size = Modules.Name.Size
+                                    Text.Outline = Modules.Name.Outline
+                                    Text.OutlineColor = Modules.Name.OutlineColor
+                                    Text.Color = Flag
+                                    Text.Center = true
+                                    Text.Transparency = Modules.Name.Transparency
+                                    Table.Texts[Player] = Text
+                                end
+                                local boxSize = Vector2new(Floor(CharacterSize * 1.8), Floor(CharacterSize * 1.9))
+                                local boxPosition = Vector2new(Floor(Position.X - CharacterSize * 1.8 / 2), Floor(Position.Y - CharacterSize * 1.6 / 2))
+                                   
+                                Text.Visible = CanDraw and Visible or false
+                                Text.Text = Player.DisplayName
+                                Text.Position = Vector2new(boxPosition.X + boxSize.X / 2, boxPosition.Y + boxSize.Y + 5)
+                            end
+                            --
+                            if Modules.Distance.Visible then
+                                local Text = Table.Distance[Player]
+                                if not Text then
+                                    Text = Overlay.new('Text')
+                                    Text.Size = Modules.Distance.Size
+                                    Text.Outline = Modules.Distance.Outline
+                                    Text.OutlineColor = Modules.Distance.OutlineColor
+                                    Text.Color = Flag
+                                    Text.Center = true
+                                    Text.Transparency = Modules.Distance.Transparency
+                                    Table.Distance[Player] = Text
+                                end
+                                local boxSize = Vector2new(Floor(CharacterSize * 1.8), Floor(CharacterSize * 1.9))
+                                local boxPosition = Vector2new(Floor(Position.X - CharacterSize * 1.8 / 2), Floor(Position.Y - CharacterSize * 1.6 / 2))
+                                   
+                                Text.Visible = CanDraw and Visible or false
+                                Text.Text = tostring(Floor(Distance)) .. ' std'
+                                Text.Position = Vector2new(boxPosition.X + boxSize.X / 2, boxPosition.Y + boxSize.Y + 15)
+                            end
+                        end
+                    end
+                else
+                    for _, lines in pairs(Table.Corners) do
+                        for _, Line in ipairs(lines) do
+                            Line:Remove()
+                        end
+                    end
+                    for _, lines in pairs(Table.Outlines) do
+                        for _, Line in ipairs(lines) do
+                            Line:Remove()
+                        end
+                    end
+                    Table.Outlines = {}
+                    Table.Corners = {}
+                    Table.Distance = {}
+                    Table.Texts = {}
+                    Raid.Players = {}
+                end
+            end]]
+
+            local function RaidAwareness()
+                local Script = shared["F​F​l​a​g​A​X​C​o​m​b​i​n​e​G​e​t​O​u​t​f​i​t​D​i​s​p​a​t​c​h​e​s​I​X​P​2"]
+                local RAID_Enabled = Script["Raid Awareness"].Enabled
+                local Priority = Environment.Priority
+            
+                if RAID_Enabled then
+                    Clean(Environment.PriorityLines)
+                    Clean(Environment.PriorityTexts)
+                    Clean(Environment.PrioritySquares)
+                    Clean(Environment.PrioritySquaresOutlines)
+                    Clean(Environment.PriorityLabels)
+                    Clean(Environment.PriorityTools) -- Clean tool name labels
+            
+                    for _, Player in ipairs(Priority) do
+                        if not table.find(Priority, Player) then
+                            Environment.PriorityTexts[Player]:Remove()
+                            Environment.PrioritySquares[Player]:Remove()
+                            Environment.PriorityLabels[Player]:Remove()
+                            Environment.PriorityTools[Player]:Remove() -- Remove tool label
+                            Environment.PriorityTexts[Player] = nil
+                            Environment.PrioritySquares[Player] = nil
+                            Environment.PriorityLabels[Player] = nil
+                            Environment.PriorityTools[Player] = nil -- Clear tool label reference
+                            continue
+                        end
+            
+                        local RootPart = Player.Character and Player.Character:FindFirstChild("HumanoidRootPart")
+                        if not RootPart then
+                            if Environment.PriorityTexts[Player] then
+                                Environment.PriorityTexts[Player].Visible = false
+                            end
+                            if Environment.PrioritySquares[Player] then
+                                Environment.PrioritySquares[Player].Visible = false
+                            end
+                            if Environment.PriorityLabels[Player] then
+                                Environment.PriorityLabels[Player].Visible = false
+                            end
+                            if Environment.PriorityTools[Player] then
+                                Environment.PriorityTools[Player].Visible = false -- Hide tool label
+                            end
+                            return
+                        end
+            
+                        local Position, Visible = Camera:WorldToViewportPoint(RootPart.Position)
+                        local CharacterSize = (Camera:WorldToViewportPoint(RootPart.Position - Vector3.new(0, 3, 0)).Y -
+                                               Camera:WorldToViewportPoint(RootPart.Position + Vector3.new(0, 2.6, 0)).Y) / 2
+                        local Size = RootPart.Size.Y
+                        local scaleFactor = (Size * Camera.ViewportSize.Y) / (Position.Z * 2) * 80 / workspace.CurrentCamera.FieldOfView
+                        local w, h = 3 * scaleFactor, 4.5 * scaleFactor
+                        local IsAlly = IsFriendly(Player)
+                        local Color = IsAlly and Color3.fromRGB(255, 255, 255) or Color3.fromRGB(0, 255, 0)
+ 
+                        if Script["Raid Awareness"]["Name"] then
+                            local Text = Environment.PriorityTexts[Player]
+                            if not Text then
+                                Text = Overlay.new("Text")
+                                Text.Size = 13
+                                Text.Visible = Visible
+                                Text.Outline = true
+                                Text.Color = Color
+                                Text.Center = true
+                                Text.RichText = true
+                                Environment.PriorityTexts[Player] = Text
+                            end
+            
+                            local displayName = string.format('<font color="rgb(173,216,230)">%s</font>', Player.DisplayName) -- Light Blue
+                            local playerName = string.format('<font color="rgb(255,255,255)">(%s)</font>', Player.Name) -- White
+                            
+                            Text.Text = displayName .. " " .. playerName
+                            Text.Position = Vector2.new(Position.X, Position.Y - h / 2 - 16)
+                            Text.Visible = Visible
+                        end
+            
+                        if Script["Raid Awareness"]["Name"] then
+                            local Label = Environment.PriorityLabels[Player]
+                            if not Label then
+                                Label = Overlay.new("Text")
+                                Label.Size = 13
+                                Label.Visible = Visible
+                                Label.Outline = true
+                                Label.Center = true
+                                Label.RichText = true
+                                Environment.PriorityLabels[Player] = Label
+                            end
+            
+                            local statusText = not IsAlly and '<font color="rgb(0,255,255)">Friendly</font>' or '<font color="rgb(255,0,0)">Enemy</font>'
+                            Label.Text = statusText
+                            Label.Position = Vector2.new(Position.X, Position.Y + h / 2 + 1)
+                            Label.Visible = Visible
+                        end
+        
+
+                        if Script["Raid Awareness"]["Box"] then
+                            local Square = Environment.PrioritySquares[Player]
+                            if not Square then
+                                Square = Overlay.new("Square")
+                                Square.Thickness = 1
+                                Square.Color = Color
+                                Environment.PrioritySquares[Player] = Square
+                            end
+                            
+                            Square.Position = Vector2.new(Position.X - w / 2, Position.Y - h / 2)
+                            Square.Size = Vector2.new(w, h)
+                            Square.Visible = Visible
+                        end
+                    end
+                else
+                    for _, lines in pairs(Environment.PriorityTexts) do
+                        for _, Line in ipairs(lines) do
+                            Line:Remove()
+                        end
+                    end
+                    for _, lines in pairs(Environment.PrioritySquares) do
+                        for _, Line in ipairs(lines) do
+                            Line:Remove()
+                        end
+                    end
+                    for _, labels in pairs(Environment.PriorityLabels) do
+                        for _, Label in ipairs(labels) do
+                            Label:Remove()
+                        end
+                    end
+                    for _, tools in pairs(Environment.PriorityTools) do
+                        for _, ToolLabel in ipairs(tools) do
+                            ToolLabel:Remove()
+                        end
+                    end
+            
+                    Clean(Environment.PriorityLines)
+                    Clean(Environment.PriorityTexts)
+                    Clean(Environment.PrioritySquares)
+                    Clean(Environment.PrioritySquaresOutlines)
+                    Clean(Environment.PriorityLabels)
+                    Clean(Environment.PriorityTools) -- Clean tool storage
+            
+                    Environment.PriorityLines = {}
+                    Environment.PrioritySquaresOutlines = {}
+                    Environment.PriorityTexts = {}
+                    Environment.PrioritySquares = {}
+                    Environment.PriorityLabels = {}
+                    Environment.PriorityTools = {} -- Store tool labels
+                    Environment.Priority = {}
+                end
+            end
+            
+    
+            return {
+                AimAssist = AimAssist,
+                UpdateBox = UpdateBox,
+                SilentAim = SilentAim,
+                TriggerBot = TriggerBot,
+                GetGunCategory = GetGunCategory,
+                SelectPriority = SelectPriority,
+                RaidAwareness = RaidAwareness,
+                ClearPriority = ClearPriority
+            }
         end
     end
+end)()
+--
+local Main = Modules.Get("Main")
+local Player = Modules.Get("Player")
+local Utility = Modules.Get("Utility")
+local ScreenGui = Modules.Get("ScreenGui")
+local SP = false
+local SP2 = false
+--// Connections
+do
+    ScreenGui.Setup()
+    Utility.Connection(UserInputService.InputBegan, function(Input, Processed)
+        if shared["F​F​l​a​g​A​X​C​o​m​b​i​n​e​G​e​t​O​u​t​f​i​t​D​i​s​p​a​t​c​h​e​s​I​X​P​2"].Conditions.Typing and UserInputService:GetFocusedTextBox() then return end
+        local WalkSpeed = Enum.KeyCode[shared["F​F​l​a​g​A​X​C​o​m​b​i​n​e​G​e​t​O​u​t​f​i​t​D​i​s​p​a​t​c​h​e​s​I​X​P​2"].Physics.Walking.Toggle:upper()]
+        local SilentAim = Enum.KeyCode[shared["F​F​l​a​g​A​X​C​o​m​b​i​n​e​G​e​t​O​u​t​f​i​t​D​i​s​p​a​t​c​h​e​s​I​X​P​2"].SilentAim.Toggle:upper()]
+        local AimAssist = Enum.KeyCode[shared["F​F​l​a​g​A​X​C​o​m​b​i​n​e​G​e​t​O​u​t​f​i​t​D​i​s​p​a​t​c​h​e​s​I​X​P​2"].AimAssist.Toggle:upper()]
+        local DoubleTap = Enum.KeyCode[shared["F​F​l​a​g​A​X​C​o​m​b​i​n​e​G​e​t​O​u​t​f​i​t​D​i​s​p​a​t​c​h​e​s​I​X​P​2"].Modifications['Double Tap'].Toggle:upper()]
+        local RaidAwareness = Enum.KeyCode[shared["F​F​l​a​g​A​X​C​o​m​b​i​n​e​G​e​t​O​u​t​f​i​t​D​i​s​p​a​t​c​h​e​s​I​X​P​2"]["Raid Awareness"]['Select']:upper()]
+        local RaidAwarenessHide = Enum.KeyCode[shared["F​F​l​a​g​A​X​C​o​m​b​i​n​e​G​e​t​O​u​t​f​i​t​D​i​s​p​a​t​c​h​e​s​I​X​P​2"]["Raid Awareness"]['Clear']:upper()]
 
-    updatefovbox(fovparts.silentaim, fov2dboxes.silentaim, cfg['silent aimbot']['fov'], silentaimactive)
-    updatefovbox(fovparts.camlock, fov2dboxes.camlock, cfg['camera aimbot']['fov'], camlockactive)
-    updatefovbox(fovparts.triggerbot, fov2dboxes.triggerbot, cfg['trigger bot']['fov'], triggerenabled)
+        if Input.KeyCode == WalkSpeed then
+            Mango.Locals.IsWalkSpeeding = not Mango.Locals.IsWalkSpeeding
+        end
 
-    updatetargetline()
-    refreshesp()
+        if Input.KeyCode == DoubleTap then
+            Mango.Locals.IsDoubleTapping = not Mango.Locals.IsDoubleTapping
+        end
 
-    if cfg['camera aimbot']['enabled'] then
-        applycamlock()
+        if (Input.KeyCode == RaidAwareness) then
+            Main.SelectPriority()
+        end
+
+        if (Input.KeyCode == RaidAwarenessHide) then
+            Main.ClearPriority()
+        end
+
+
+        if Input.KeyCode == AimAssist and shared["F​F​l​a​g​A​X​C​o​m​b​i​n​e​G​e​t​O​u​t​f​i​t​D​i​s​p​a​t​c​h​e​s​I​X​P​2"].AimAssist.Sticky then
+            SP2 = not SP2
+            if SP2 then
+                Mango.Locals.AimAssistTarget = Player.GetClosestPlayerToCursor()
+            else
+                if Mango.Locals.AimAssistTarget then
+                    Mango.Locals.AimAssistTarget = nil
+                end
+            end
+        end
+
+        if Input.KeyCode == SilentAim and shared["F​F​l​a​g​A​X​C​o​m​b​i​n​e​G​e​t​O​u​t​f​i​t​D​i​s​p​a​t​c​h​e​s​I​X​P​2"].SilentAim.Mode == "Target" then
+            SP = not SP
+            if SP then
+                Mango.Locals.SilentAimTarget = Player.GetClosestPlayerToCursor()
+            else
+                if Mango.Locals.SilentAimTarget then
+                    Mango.Locals.SilentAimTarget = nil
+                end
+            end
+        end
+
+        local triggerConfig = shared["F​F​l​a​g​A​X​C​o​m​b​i​n​e​G​e​t​O​u​t​f​i​t​D​i​s​p​a​t​c​h​e​s​I​X​P​2"].TriggerBot
+        local isMouseInput = triggerConfig.Input == 'Mouse'
+        local isKeyboardInput = triggerConfig.Input == 'Keyboard'
+        local toggleKey = triggerConfig.Toggle
+
+        if isMouseInput and Input.UserInputType == Enum.UserInputType[toggleKey] then
+            if triggerConfig.Type == "Toggle" then
+                Mango.Locals.TriggerState = not Mango.Locals.TriggerState
+            elseif triggerConfig.Type == "Hold" then
+                Mango.Locals.TriggerState = true
+            end
+        elseif isKeyboardInput and Input.KeyCode == Enum.KeyCode[toggleKey:upper()] then
+            if triggerConfig.Type == "Toggle" then
+                Mango.Locals.TriggerState = not Mango.Locals.TriggerState
+            elseif triggerConfig.Type == "Hold" then
+                Mango.Locals.TriggerState = true
+            end
+        end
+    end)
+    Utility.Connection(UserInputService.InputEnded, function(Input, Processed)
+        if shared["F​F​l​a​g​A​X​C​o​m​b​i​n​e​G​e​t​O​u​t​f​i​t​D​i​s​p​a​t​c​h​e​s​I​X​P​2"].Conditions.Typing and UserInputService:GetFocusedTextBox() then return end
+        local triggerConfig = shared["F​F​l​a​g​A​X​C​o​m​b​i​n​e​G​e​t​O​u​t​f​i​t​D​i​s​p​a​t​c​h​e​s​I​X​P​2"].TriggerBot
+        local isMouseInput = triggerConfig.Input == 'Mouse'
+        local isKeyboardInput = triggerConfig.Input == 'Keyboard'
+        local toggleKey = triggerConfig.Toggle
+
+        if triggerConfig.Type == "Hold" then
+            if isMouseInput and Input.UserInputType == Enum.UserInputType[toggleKey] then
+                Mango.Locals.TriggerState = false
+            elseif isKeyboardInput and Input.KeyCode == Enum.KeyCode[toggleKey:upper()] then
+                Mango.Locals.TriggerState = false
+            end
+        end
+    end)
+    Utility.ThreadLoop(0, function()
+        if shared["F​F​l​a​g​A​X​C​o​m​b​i​n​e​G​e​t​O​u​t​f​i​t​D​i​s​p​a​t​c​h​e​s​I​X​P​2"].SilentAim.Mode == "Automatic" then
+            Mango.Locals.SilentAimTarget = Player.GetClosestPlayerToCursor()
+        end
+        Mango.Locals.TriggerbotTarget = Player.GetClosestPlayerToCursor()
+        if Mango.Locals.TriggerbotTarget then
+            if Mango.Locals.TriggerbotTarget.Character then
+                Mango.Locals.HitTrigger = Player.GetClosestPartToCursor(Mango.Locals.TriggerbotTarget.Character)
+            end
+        end
+        ScreenGui.UpdateDrawings()
+    end)
+    Utility.Connection(RunService.PreRender, LPH_NO_VIRTUALIZE(function()
+        if Mango.Locals.SilentAimTarget and Mango.Locals.SilentAimTarget.Character then
+            Player.GetHitPosition("Silent")
+        end
+        --Utility.ThreadFunction(Main.AimAssist)
+        --Utility.ThreadFunction(Main.TriggerBot)
+        Main.AimAssist()
+        Main.TriggerBot()
+        Player.AutomatedPrediction()
+        Main.UpdateBox()
+        --Utility.ThreadFunction(Player.AutomatedPrediction)
+    end))
+    Utility.Connection(RunService.PreRender, LPH_NO_VIRTUALIZE(function()
+        Utility.ThreadFunction(Player.SelfMods)
+        Utility.ThreadFunction(Main.RaidAwareness)
+        if shared["F​F​l​a​g​A​X​C​o​m​b​i​n​e​G​e​t​O​u​t​f​i​t​D​i​s​p​a​t​c​h​e​s​I​X​P​2"].SilentAim.Enabled and CurrentGame.Name == "Da Hood" then
+            local GunType = Main.GetGunCategory()
+            local Tool = Self.Character:FindFirstChildWhichIsA("Tool")
+            if Tool then
+                if GunType == "Pistol" or GunType == "Sniper" then
+                    for I, v in pairs(Tool:GetChildren()) do
+                        if v.Name == "GunClient" then
+                            v:Destroy()
+                            --v.Disabled = Mango.Locals.GunScriptDisabled
+                        end
+                    end
+                elseif GunType == "Shotgun" then
+                    for I, v in pairs(Tool:GetChildren()) do
+                        if v.Name == "GunClientShotgun" then
+                            v:Destroy()
+                            --v.Disabled = Mango.Locals.GunScriptDisabled
+                        end
+                    end
+                elseif GunType == "Auto" then
+                    for I, v in pairs(Tool:GetChildren()) do
+                        if v.Name == "GunClientAutomaticShotgun" then
+                            v:Destroy()
+                            --v.Disabled = Mango.Locals.GunScriptDisabled
+                        end
+                    end
+                elseif GunType == "Burst" then
+                    for I, v in pairs(Tool:GetChildren()) do
+                        if v.Name == "GunClientBurst" then
+                            v:Destroy()
+                            --v.Disabled = Mango.Locals.GunScriptDisabled
+                        end
+                    end
+                elseif GunType == "Rifle" or GunType == "SMG" then
+                    for I, v in pairs(Tool:GetChildren()) do
+                        if v.Name == "GunClientAutomatic" then
+                            v:Destroy()
+                            --v.Disabled = Mango.Locals.GunScriptDisabled
+                        end
+                    end
+                end    
+            end
+        end
+    end))
+    if CurrentGame.Name == 'Dee Hood' and CurrentGame.Updater == nil then
+        local function GetArgument() 
+            for _, Player in next, game:GetService("Players"):GetPlayers() do
+                if Player.Backpack:GetAttribute(string.upper("muv")) then
+                    return Player.Backpack:GetAttribute(string.upper("muv"))
+                end
+            end
+        
+            return nil
+        end
+        
+        local Argument = GetArgument()
+        if Argument then
+            CurrentGame.Updater = Argument
+        end
     end
-end))
+    if shared["F​F​l​a​g​A​X​C​o​m​b​i​n​e​G​e​t​O​u​t​f​i​t​D​i​s​p​a​t​c​h​e​s​I​X​P​2"].Physics.Jumping.Enabled then
+        local function disableJumpPower(character)
+            character:WaitForChild("Humanoid").UseJumpPower = false
+        end
+        Self.CharacterAdded:Connect(disableJumpPower)
+    
+        if Self.Character then
+            disableJumpPower(Self.Character)
+        end
+    end        
+    if shared["F​F​l​a​g​A​X​C​o​m​b​i​n​e​G​e​t​O​u​t​f​i​t​D​i​s​p​a​t​c​h​e​s​I​X​P​2"].SilentAim.Enabled then
+        local Connections = {}
+        local function connectTool(tool)
+            if tool:IsA("Tool") and not Connections[tool] then
+                Connections[tool] = tool.Activated:Connect(function()
+                    Main.SilentAim(tool)
+                end)
+            end
+        end
+        
+        for _, v in ipairs(Self.Backpack:GetChildren()) do
+            connectTool(v)
+        end
+        
+        for _, v in ipairs(Self.Character:GetChildren()) do
+            connectTool(v)
+        end
+        
+        Self.Character.ChildAdded:Connect(connectTool)
+        
+        Self.CharacterAdded:Connect(function(character)
+            for tool, connection in pairs(Connections) do
+                connection:Disconnect()
+                Connections[tool] = nil
+            end
+            
+            character.ChildAdded:Connect(connectTool)
+        end)
+    
+    
+        task.spawn(function()
+            while task.wait() do
+                local Tool = Self.Character:FindFirstChildWhichIsA("Tool")
+                if Tool and CurrentGame.Name == "Da Hood" then
+                    Tool:GetPropertyChangedSignal("Grip"):Connect(function()
+                        game.ReplicatedStorage:WaitForChild("MainEvent"):FireServer("CHECKER_4")
+                    end)
+                end
+            end
+        end)
+    end
+end
