@@ -5,20 +5,20 @@ if not LPH_OBFUSCATED then
     LPH_ENCFUNC = function(...) return ... end
     LPH_CRASH = function() end
 end
---// Services
+if not game:IsLoaded() then
+    game.Loaded:Wait()
+end
 local Players = game:GetService("Players")
 local Workspace = game.Workspace
 local RunService = game:GetService("RunService")
 local TweenService = game:GetService("TweenService")
 local UserInputService = game:GetService("UserInputService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
---// Self
 local Self = Players.LocalPlayer
 local Mouse = Self:GetMouse()
 local Camera = workspace.CurrentCamera
 local GuiInsetOffsetY = game:GetService('GuiService'):GetGuiInset().Y
---// Cheat
-local Mango = {
+local snoozestuff = {
     RBXConnections = {},
     Locals = {
         GunScriptDisabled = true, -->: Boolean
@@ -297,14 +297,26 @@ local Games = {
     },
     ["Universal"] = {
         Name = 'Universal', 
-        Updater = nil,
-        HoodGame = false,
+        Updater = 'UpdateMousePos',
+        HoodGame = true,
         Functions = {
             KnockedFunction = function(Player)
+                if (Player) and Player.Character:FindFirstChild('BodyEffects') then
+                    return Player.Character.BodyEffects['K.O'].Value
+                end
+                --
                 return false
             end,
             GrabbedFunction = function(Player)
-                return false
+                if Player and Player.Character then
+                    if Player.Character:FindFirstChild('GRABBING_CONSTRAINT') ~= nil then
+                        return true
+                    else
+                        return false
+                    end
+                else
+                    return false
+                end
             end,			
             RemotePath = function()
                 return nil
@@ -313,10 +325,6 @@ local Games = {
     }
 }
 
---[[
-if not Games[game.GameId] then
-    while true do end
-end]]
 local CurrentGame 
 if Games[game.GameId] then
     CurrentGame = Games[game.GameId]
@@ -783,19 +791,9 @@ LPH_JIT_MAX(function()
                     })
                 end
             end
-            if not Mango.Visuals.BoxFOV then
-                Mango.Visuals.BoxFOV = Overlay.new('Square')
+            if not snoozestuff.Visuals.BoxFOV then
+                snoozestuff.Visuals.BoxFOV = Overlay.new('Square')
             end
-         --[[
-         
-            local Text = Overlay.new("Text")
-
-            Text.Visible = true
-            Text.Position = Vector2.new(workspace.CurrentCamera.ViewportSize.X / 2, workspace.CurrentCamera.ViewportSize.Y / 2)
-            Text.Size = 13
-            Text.Text = "He;lo"
-            Text.Outline = true
-            Text.Color = Color3.fromRGB(255, 255, 255)]]
         end
         do --// Keybind Handler
             function KeybindHandler.GetBind(Id)
@@ -1025,7 +1023,7 @@ LPH_JIT_MAX(function()
     
             local function Connection(connectionType, connectionCallback)
                 local connection = connectionType:Connect(connectionCallback)
-                Mango.RBXConnections[#Mango.RBXConnections + 1] = connection
+                snoozestuff.RBXConnections[#snoozestuff.RBXConnections + 1] = connection
                 return connection
             end
     
@@ -1091,69 +1089,69 @@ LPH_JIT_MAX(function()
             local function UpdateDrawings()
                 Setup() 
         
-                if not Mango.Visuals then
-                    Mango.Visuals = {}
+                if not snoozestuff.Visuals then
+                    snoozestuff.Visuals = {}
                 end
         
-                if not Mango.Visuals.Triggerbot then
-                    Mango.Visuals.Triggerbot = DrawText(Gui)
+                if not snoozestuff.Visuals.Triggerbot then
+                    snoozestuff.Visuals.Triggerbot = DrawText(Gui)
                 end
     
-                if not Mango.Visuals.WalkSpeed then
-                    Mango.Visuals.WalkSpeed = DrawText(Gui)
+                if not snoozestuff.Visuals.WalkSpeed then
+                    snoozestuff.Visuals.WalkSpeed = DrawText(Gui)
                 end
     
-                if not Mango.Visuals.DoubleTap then
-                    Mango.Visuals.DoubleTap = DrawText(Gui)
+                if not snoozestuff.Visuals.DoubleTap then
+                    snoozestuff.Visuals.DoubleTap = DrawText(Gui)
                 end
     
-                if shared["F​F​l​a​g​A​X​C​o​m​b​i​n​e​G​e​t​O​u​t​f​i​t​D​i​s​p​a​t​c​h​e​s​I​X​P​2"].Universal.Indicators.Enabled and shared["F​F​l​a​g​A​X​C​o​m​b​i​n​e​G​e​t​O​u​t​f​i​t​D​i​s​p​a​t​c​h​e​s​I​X​P​2"].Modifications['Double Tap'].Enabled and Mango.Visuals.DoubleTap then
+                if shared["snoozesaved"].Universal.Indicators.Enabled and shared["snoozesaved"].Modifications['Double Tap'].Enabled and snoozestuff.Visuals.DoubleTap then
                     local viewportSize = Camera.ViewportSize
                     local centerX = viewportSize.X / 2
                     local centerY = viewportSize.Y / 2
         
-                    Mango.Visuals.DoubleTap.Position = UDim2.new(
-                        0, centerX - (Mango.Visuals.DoubleTap.Size.X.Offset / 2) - 900,  
-                        0, centerY - (Mango.Visuals.DoubleTap.Size.Y.Offset / 2) + 120 
+                    snoozestuff.Visuals.DoubleTap.Position = UDim2.new(
+                        0, centerX - (snoozestuff.Visuals.DoubleTap.Size.X.Offset / 2) - 900,  
+                        0, centerY - (snoozestuff.Visuals.DoubleTap.Size.Y.Offset / 2) + 120 
                     )
                     
-                    if Mango.Locals.DoubleTapState then
-                        Mango.Visuals.DoubleTap.TextColor3 = Color3.fromRGB(255, 0, 0)
+                    if snoozestuff.Locals.DoubleTapState then
+                        snoozestuff.Visuals.DoubleTap.TextColor3 = Color3.fromRGB(255, 0, 0)
                     else
-                        Mango.Visuals.DoubleTap.TextColor3 = Color3.fromRGB(255, 255, 255)
+                        snoozestuff.Visuals.DoubleTap.TextColor3 = Color3.fromRGB(255, 255, 255)
                     end
-                    Mango.Visuals.DoubleTap.Visible = shared["F​F​l​a​g​A​X​C​o​m​b​i​n​e​G​e​t​O​u​t​f​i​t​D​i​s​p​a​t​c​h​e​s​I​X​P​2"].Modifications['Double Tap'].Enabled and Mango.Locals.IsDoubleTapping
-                    Mango.Visuals.DoubleTap.Text = "DT"
+                    snoozestuff.Visuals.DoubleTap.Visible = shared["snoozesaved"].Modifications['Double Tap'].Enabled and snoozestuff.Locals.IsDoubleTapping
+                    snoozestuff.Visuals.DoubleTap.Text = "DTap"
                 end
     
-                if shared["F​F​l​a​g​A​X​C​o​m​b​i​n​e​G​e​t​O​u​t​f​i​t​D​i​s​p​a​t​c​h​e​s​I​X​P​2"].Universal.Indicators.Enabled and shared["F​F​l​a​g​A​X​C​o​m​b​i​n​e​G​e​t​O​u​t​f​i​t​D​i​s​p​a​t​c​h​e​s​I​X​P​2"].Physics.Walking.Enabled and Mango.Visuals.WalkSpeed then
+                if shared["snoozesaved"].Universal.Indicators.Enabled and shared["snoozesaved"].Physics.Walking.Enabled and snoozestuff.Visuals.WalkSpeed then
                     local viewportSize = Camera.ViewportSize
                     local centerX = viewportSize.X / 2
                     local centerY = viewportSize.Y / 2
         
-                    Mango.Visuals.WalkSpeed.Position = UDim2.new(
-                        0, centerX - (Mango.Visuals.WalkSpeed.Size.X.Offset / 2) - 900,  
-                        0, centerY - (Mango.Visuals.WalkSpeed.Size.Y.Offset / 2) + 160 
+                    snoozestuff.Visuals.WalkSpeed.Position = UDim2.new(
+                        0, centerX - (snoozestuff.Visuals.WalkSpeed.Size.X.Offset / 2) - 900,  
+                        0, centerY - (snoozestuff.Visuals.WalkSpeed.Size.Y.Offset / 2) + 160 
                     )
                     
-                    Mango.Visuals.WalkSpeed.TextColor3 = Color3.fromRGB(255, 255, 255)
-                    Mango.Visuals.WalkSpeed.Visible = shared["F​F​l​a​g​A​X​C​o​m​b​i​n​e​G​e​t​O​u​t​f​i​t​D​i​s​p​a​t​c​h​e​s​I​X​P​2"].Physics.Walking.Enabled and Mango.Locals.IsWalkSpeeding
-                    Mango.Visuals.WalkSpeed.Text = "WS"
+                    snoozestuff.Visuals.WalkSpeed.TextColor3 = Color3.fromRGB(255, 255, 255)
+                    snoozestuff.Visuals.WalkSpeed.Visible = shared["snoozesaved"].Physics.Walking.Enabled and snoozestuff.Locals.IsWalkSpeeding
+                    snoozestuff.Visuals.WalkSpeed.Text = "WSpeed"
                 end
         
-                if shared["F​F​l​a​g​A​X​C​o​m​b​i​n​e​G​e​t​O​u​t​f​i​t​D​i​s​p​a​t​c​h​e​s​I​X​P​2"].Universal.Indicators.Enabled and shared["F​F​l​a​g​A​X​C​o​m​b​i​n​e​G​e​t​O​u​t​f​i​t​D​i​s​p​a​t​c​h​e​s​I​X​P​2"].TriggerBot.Enabled and Mango.Visuals.Triggerbot then
+                if shared["snoozesaved"].Universal.Indicators.Enabled and shared["snoozesaved"].TriggerBot.Enabled and snoozestuff.Visuals.Triggerbot then
                     local viewportSize = Camera.ViewportSize
                     local centerX = viewportSize.X / 2
                     local centerY = viewportSize.Y / 2
         
-                    Mango.Visuals.Triggerbot.Position = UDim2.new(
-                        0, centerX - (Mango.Visuals.Triggerbot.Size.X.Offset / 2) - 900,  
-                        0, centerY - (Mango.Visuals.Triggerbot.Size.Y.Offset / 2) + 200 
+                    snoozestuff.Visuals.Triggerbot.Position = UDim2.new(
+                        0, centerX - (snoozestuff.Visuals.Triggerbot.Size.X.Offset / 2) - 900,  
+                        0, centerY - (snoozestuff.Visuals.Triggerbot.Size.Y.Offset / 2) + 200 
                     )
                     
-                    Mango.Visuals.Triggerbot.TextColor3 = Color3.fromRGB(255, 255, 255)
-                    Mango.Visuals.Triggerbot.Visible = shared["F​F​l​a​g​A​X​C​o​m​b​i​n​e​G​e​t​O​u​t​f​i​t​D​i​s​p​a​t​c​h​e​s​I​X​P​2"].TriggerBot.Enabled and Mango.Locals.TriggerState
-                    Mango.Visuals.Triggerbot.Text = "TB"
+                    snoozestuff.Visuals.Triggerbot.TextColor3 = Color3.fromRGB(255, 255, 255)
+                    snoozestuff.Visuals.Triggerbot.Visible = shared["snoozesaved"].TriggerBot.Enabled and snoozestuff.Locals.TriggerState
+                    snoozestuff.Visuals.Triggerbot.Text = "Tbot"
                 end
             end
         
@@ -1173,41 +1171,7 @@ LPH_JIT_MAX(function()
                 local RootPart = (Humanoid and Humanoid.RootPart) or false
                 return Object, Humanoid, RootPart
             end
-
-            --[[
-                   local function IsDesynced(Player, X, Y, Z, UseMagnitude, Magnitude, Force)
-				X = X or 70
-				Y = Y or 100
-				Z = Z or 53 -- z axis should never go over 30?
-				UseMagnitude = UseMagnitude or true
-				Magnitude = Magnitude or 80
-				Force = Force or false
-				--
-				local Object, Humanoid, RootPart = ValidateClient(Player)
-				--
-				if (Object and Humanoid and RootPart) then
-					local Velocity = RootPart.Velocity
-					local Cap = Vector3.new(X, Y, Z)
-					--
-					if Velocity.X >= Cap.X or Velocity.Y >= Cap.Y or Velocity.Z >= Cap.Z then
-						return true
-					end
-					--
-					if Velocity.Magnitude >= 75 then
-						return true
-					end
-					--
-					if UseMagnitude and Velocity.Magnitude > Magnitude then
-						return true
-					end
-					--
-					if Force then
-						return true
-					end
-				end
-			end]]
             
-
             local function IsDesynced(RootPart)
                 local Velocity = RootPart.Velocity
 
@@ -1215,7 +1179,7 @@ LPH_JIT_MAX(function()
                     return true
                 end
 
-                if shared["F​F​l​a​g​A​X​C​o​m​b​i​n​e​G​e​t​O​u​t​f​i​t​D​i​s​p​a​t​c​h​e​s​I​X​P​2"].Physics.Velocity['Always On'] then
+                if shared["snoozesaved"].Physics.Velocity['Always On'] then
                     return true
                 end
              
@@ -1283,40 +1247,33 @@ LPH_JIT_MAX(function()
                             continue
                         end
         
-                        if shared["F​F​l​a​g​A​X​C​o​m​b​i​n​e​G​e​t​O​u​t​f​i​t​D​i​s​p​a​t​c​h​e​s​I​X​P​2"].Conditions.Wall then
+                        if shared["snoozesaved"].Conditions.Wall then
                             if not Engine.RayCast(Player.Character.HumanoidRootPart, GetOrigin('Camera'), {Self.Character}) then
                                 continue
                             end
                         end
                 
-                        if shared["F​F​l​a​g​A​X​C​o​m​b​i​n​e​G​e​t​O​u​t​f​i​t​D​i​s​p​a​t​c​h​e​s​I​X​P​2"].Conditions.Forcefield then
+                        if shared["snoozesaved"].Conditions.Forcefield then
                             if Character:FindFirstChild("ForceField") then
                                 continue
                             end
                         end
         
-                        if shared["F​F​l​a​g​A​X​C​o​m​b​i​n​e​G​e​t​O​u​t​f​i​t​D​i​s​p​a​t​c​h​e​s​I​X​P​2"].Conditions.Knocked then
+                        if shared["snoozesaved"].Conditions.Knocked then
                             if IsKnocked(Character) then
                                 continue
                             end
                         end
         
-                        if shared["F​F​l​a​g​A​X​C​o​m​b​i​n​e​G​e​t​O​u​t​f​i​t​D​i​s​p​a​t​c​h​e​s​I​X​P​2"].Conditions.Grabbed then
+                        if shared["snoozesaved"].Conditions.Grabbed then
                             if IsGrabbed(Character) then
                                 continue
                             end
                         end
-        
-                        --[[
-                                if shared["F​F​l​a​g​A​X​C​o​m​b​i​n​e​G​e​t​O​u​t​f​i​t​D​i​s​p​a​t​c​h​e​s​I​X​P​2"].Conditions.Moving then
-                            if Character.Humanoid.MoveDirection.Magnitude < 0.01 then
-                                continue
-                            end
-                        end]]
                         
                         local Position, OnScreen = CurrentCamera:WorldToViewportPoint(HumanoidRootPart.Position)
         
-                        if shared["F​F​l​a​g​A​X​C​o​m​b​i​n​e​G​e​t​O​u​t​f​i​t​D​i​s​p​a​t​c​h​e​s​I​X​P​2"].Conditions.Visible then
+                        if shared["snoozesaved"].Conditions.Visible then
                             if not OnScreen then
                                 continue
                             end
@@ -1425,24 +1382,24 @@ LPH_JIT_MAX(function()
     
             local function SelfMods()
                 if not Self.Character then return end
-                if shared["F​F​l​a​g​A​X​C​o​m​b​i​n​e​G​e​t​O​u​t​f​i​t​D​i​s​p​a​t​c​h​e​s​I​X​P​2"].Physics.Walking.Enabled and Mango.Locals.IsWalkSpeeding then
+                if shared["snoozesaved"].Physics.Walking.Enabled and snoozestuff.Locals.IsWalkSpeeding then
                     local Object, Humanoid, RootPart = ValidateClient(Self)
                     if (Humanoid and RootPart) then
 
-                        if not shared["F​F​l​a​g​A​X​C​o​m​b​i​n​e​G​e​t​O​u​t​f​i​t​D​i​s​p​a​t​c​h​e​s​I​X​P​2"].Physics.Walking.Glide then
+                        if not shared["snoozesaved"].Physics.Walking.Glide then
                             RootPart.CustomPhysicalProperties = PhysicalProperties.new(100, .3, .5)
                         else
                             RootPart.CustomPhysicalProperties = nil
                         end
-                        Humanoid.WalkSpeed = shared["F​F​l​a​g​A​X​C​o​m​b​i​n​e​G​e​t​O​u​t​f​i​t​D​i​s​p​a​t​c​h​e​s​I​X​P​2"].Physics.Walking.Amount * 100
+                        Humanoid.WalkSpeed = shared["snoozesaved"].Physics.Walking.Amount * 100
                         --[[
                         local moveDirection = Humanoid.MoveDirection
-                        Mango.Locals.MoveVector = moveDirection * Humanoid.WalkSpeed * shared["F​F​l​a​g​A​X​C​o​m​b​i​n​e​G​e​t​O​u​t​f​i​t​D​i​s​p​a​t​c​h​e​s​I​X​P​2"].Physics.Walking.Amount
-                        RootPart.Velocity = Vector3.new(Mango.Locals.MoveVector.X, RootPart.Velocity.Y, Mango.Locals.MoveVector.Z)]]
+                        snoozestuff.Locals.MoveVector = moveDirection * Humanoid.WalkSpeed * shared["snoozesaved"].Physics.Walking.Amount
+                        RootPart.Velocity = Vector3.new(snoozestuff.Locals.MoveVector.X, RootPart.Velocity.Y, snoozestuff.Locals.MoveVector.Z)]]
                     end
                 end
     
-                if shared["F​F​l​a​g​A​X​C​o​m​b​i​n​e​G​e​t​O​u​t​f​i​t​D​i​s​p​a​t​c​h​e​s​I​X​P​2"].Physics.Falling.Enabled then
+                if shared["snoozesaved"].Physics.Falling.Enabled then
                     if Self.Character.Humanoid.Health > 1 and  Self.Character.Humanoid:GetState() == Enum.HumanoidStateType.FallingDown then
                         Self.Character.Humanoid:ChangeState("GettingUp")
                     end
@@ -1597,8 +1554,8 @@ LPH_JIT_MAX(function()
             end
             
             local function AutomatedPrediction()
-                local silentAimSettings = shared["F​F​l​a​g​A​X​C​o​m​b​i​n​e​G​e​t​O​u​t​f​i​t​D​i​s​p​a​t​c​h​e​s​I​X​P​2"]
-                local TargetPlayerData = Mango.Locals.SilentAimTarget
+                local silentAimSettings = shared["snoozesaved"]
+                local TargetPlayerData = snoozestuff.Locals.SilentAimTarget
             
                 local silentAimTarget = TargetPlayerData
                 local playerCharacter = Self.Character
@@ -1653,29 +1610,29 @@ LPH_JIT_MAX(function()
     
             local function GetHitPosition(Mode)
                 if Mode == 'Assist' then
-                    local NearestPart = GetClosestPartToCursor(Mango.Locals.AimAssistTarget.Character)
+                    local NearestPart = GetClosestPartToCursor(snoozestuff.Locals.AimAssistTarget.Character)
                     local NearestPoint 
                     local Hit
     
-                    if shared["F​F​l​a​g​A​X​C​o​m​b​i​n​e​G​e​t​O​u​t​f​i​t​D​i​s​p​a​t​c​h​e​s​I​X​P​2"].AimAssist.Type == 'Advanced' then
-                        NearestPoint = GetClosestPointOnPart(NearestPart, shared["F​F​l​a​g​A​X​C​o​m​b​i​n​e​G​e​t​O​u​t​f​i​t​D​i​s​p​a​t​c​h​e​s​I​X​P​2"].SilentAim.Scale)
+                    if shared["snoozesaved"].AimAssist.Type == 'Advanced' then
+                        NearestPoint = GetClosestPointOnPart(NearestPart, shared["snoozesaved"].SilentAim.Scale)
                     else
                         NearestPoint = GetClosestPointOnPartBasic(NearestPart)
                     end
         
                     local TargetPosition
-                    if shared["F​F​l​a​g​A​X​C​o​m​b​i​n​e​G​e​t​O​u​t​f​i​t​D​i​s​p​a​t​c​h​e​s​I​X​P​2"].AimAssist.Point == "Nearest Part" then
+                    if shared["snoozesaved"].AimAssist.Point == "Nearest Part" then
                         TargetPosition = NearestPart.Position
-                    elseif shared["F​F​l​a​g​A​X​C​o​m​b​i​n​e​G​e​t​O​u​t​f​i​t​D​i​s​p​a​t​c​h​e​s​I​X​P​2"].AimAssist.Point == "Nearest Point" then
+                    elseif shared["snoozesaved"].AimAssist.Point == "Nearest Point" then
                         TargetPosition = NearestPoint
                     else
-                        TargetPosition = GetClosestPartToCursorFilter(Mango.Locals.AimAssistTarget.Character, shared["F​F​l​a​g​A​X​C​o​m​b​i​n​e​G​e​t​O​u​t​f​i​t​D​i​s​p​a​t​c​h​e​s​I​X​P​2"].AimAssist.Parts).Position
+                        TargetPosition = GetClosestPartToCursorFilter(snoozestuff.Locals.AimAssistTarget.Character, shared["snoozesaved"].AimAssist.Parts).Position
                     end
         
-                    if shared["F​F​l​a​g​A​X​C​o​m​b​i​n​e​G​e​t​O​u​t​f​i​t​D​i​s​p​a​t​c​h​e​s​I​X​P​2"].AimAssist.Prediction.Enabled then
-                        local RootPart = Mango.Locals.AimAssistTarget.Character.HumanoidRootPart
+                    if shared["snoozesaved"].AimAssist.Prediction.Enabled then
+                        local RootPart = snoozestuff.Locals.AimAssistTarget.Character.HumanoidRootPart
                         local Velocity = IsDesynced(RootPart) and Resolve(RootPart) or RootPart.Velocity
-                        local PredictionVector = Vector3.new(shared["F​F​l​a​g​A​X​C​o​m​b​i​n​e​G​e​t​O​u​t​f​i​t​D​i​s​p​a​t​c​h​e​s​I​X​P​2"].AimAssist.Prediction.Ground, shared["F​F​l​a​g​A​X​C​o​m​b​i​n​e​G​e​t​O​u​t​f​i​t​D​i​s​p​a​t​c​h​e​s​I​X​P​2"].AimAssist.Prediction.Air, shared["F​F​l​a​g​A​X​C​o​m​b​i​n​e​G​e​t​O​u​t​f​i​t​D​i​s​p​a​t​c​h​e​s​I​X​P​2"].AimAssist.Prediction.Ground)
+                        local PredictionVector = Vector3.new(shared["snoozesaved"].AimAssist.Prediction.Ground, shared["snoozesaved"].AimAssist.Prediction.Air, shared["snoozesaved"].AimAssist.Prediction.Ground)
                         Hit = TargetPosition + Velocity * PredictionVector
                     else
                         Hit = TargetPosition
@@ -1684,12 +1641,12 @@ LPH_JIT_MAX(function()
                     return Hit
                 end
                 if Mode == 'Silent' then
-                    if not Mango.Locals.SilentAimTarget then return Vector3.new(0, 0 ,0) end
-                    if not Mango.Locals.SilentAimTarget.Character then return Vector3.new(0, 0 ,0) end
-                    local Config = shared["F​F​l​a​g​A​X​C​o​m​b​i​n​e​G​e​t​O​u​t​f​i​t​D​i​s​p​a​t​c​h​e​s​I​X​P​2"].SilentAim
-                    local NearestPart = GetClosestPartToCursor(Mango.Locals.SilentAimTarget.Character)
+                    if not snoozestuff.Locals.SilentAimTarget then return Vector3.new(0, 0 ,0) end
+                    if not snoozestuff.Locals.SilentAimTarget.Character then return Vector3.new(0, 0 ,0) end
+                    local Config = shared["snoozesaved"].SilentAim
+                    local NearestPart = GetClosestPartToCursor(snoozestuff.Locals.SilentAimTarget.Character)
                     local NearestPoint 
-                    local Humanoid = Mango.Locals.SilentAimTarget.Character:FindFirstChild("Humanoid")
+                    local Humanoid = snoozestuff.Locals.SilentAimTarget.Character:FindFirstChild("Humanoid")
                     if Config.Type == 'Advanced' then
                         NearestPoint = GetClosestPointOnPart(NearestPart, Config.Scale)
                     else
@@ -1702,33 +1659,33 @@ LPH_JIT_MAX(function()
                     elseif Config.Point == "Nearest Point" then
                         TargetPosition = NearestPoint
                     else
-                        TargetPosition = GetClosestPartToCursorFilter(Mango.Locals.SilentAimTarget.Character,Config.Parts).Position
+                        TargetPosition = GetClosestPartToCursorFilter(snoozestuff.Locals.SilentAimTarget.Character,Config.Parts).Position
                     end
         
                     if Config.Prediction.Enabled then
-                        local RootPart = Mango.Locals.SilentAimTarget.Character.HumanoidRootPart
+                        local RootPart = snoozestuff.Locals.SilentAimTarget.Character.HumanoidRootPart
                         local Velocity = IsDesynced(RootPart) and Resolve(RootPart) or RootPart.Velocity
                         
                         if Config.Prediction.Automated and Humanoid then
                             if Humanoid.FloorMaterial == Enum.Material.Air and Velocity_Data.State == Enum.HumanoidStateType.Jumping then
-                                Mango.Locals.HitPosition = TargetPosition + Velocity * Vector3.new(Config.Prediction.Ground, Velocity_Data.Y, Config.Prediction.Ground)
+                                snoozestuff.Locals.HitPosition = TargetPosition + Velocity * Vector3.new(Config.Prediction.Ground, Velocity_Data.Y, Config.Prediction.Ground)
                             elseif Humanoid.FloorMaterial == Enum.Material.Air then
                                 if Config.Prediction.YStabilize.Enabled then
-                                    Mango.Locals.HitPosition = TargetPosition + Velocity * Vector3.new(Config.Prediction.Ground, Config.Prediction.Air / Config.Prediction.YStabilize.Value, Config.Prediction.Ground)
+                                    snoozestuff.Locals.HitPosition = TargetPosition + Velocity * Vector3.new(Config.Prediction.Ground, Config.Prediction.Air / Config.Prediction.YStabilize.Value, Config.Prediction.Ground)
                                 else
-                                    Mango.Locals.HitPosition = TargetPosition + Velocity * Vector3.new(Config.Prediction.Ground, Config.Prediction.Air, Config.Prediction.Ground)
+                                    snoozestuff.Locals.HitPosition = TargetPosition + Velocity * Vector3.new(Config.Prediction.Ground, Config.Prediction.Air, Config.Prediction.Ground)
                                 end
                             else
-                                Mango.Locals.HitPosition = TargetPosition + Velocity * Vector3.new(Config.Prediction.Ground, Config.Prediction.Air, Config.Prediction.Ground)
+                                snoozestuff.Locals.HitPosition = TargetPosition + Velocity * Vector3.new(Config.Prediction.Ground, Config.Prediction.Air, Config.Prediction.Ground)
                             end
                         
                         else
-                            local PredictionVector = Vector3.new(shared["F​F​l​a​g​A​X​C​o​m​b​i​n​e​G​e​t​O​u​t​f​i​t​D​i​s​p​a​t​c​h​e​s​I​X​P​2"].SilentAim.Prediction.Ground, shared["F​F​l​a​g​A​X​C​o​m​b​i​n​e​G​e​t​O​u​t​f​i​t​D​i​s​p​a​t​c​h​e​s​I​X​P​2"].SilentAim.Prediction.Air, shared["F​F​l​a​g​A​X​C​o​m​b​i​n​e​G​e​t​O​u​t​f​i​t​D​i​s​p​a​t​c​h​e​s​I​X​P​2"].SilentAim.Prediction.Ground)
+                            local PredictionVector = Vector3.new(shared["snoozesaved"].SilentAim.Prediction.Ground, shared["snoozesaved"].SilentAim.Prediction.Air, shared["snoozesaved"].SilentAim.Prediction.Ground)
                         
-                            Mango.Locals.HitPosition = TargetPosition + Velocity * PredictionVector
+                            snoozestuff.Locals.HitPosition = TargetPosition + Velocity * PredictionVector
                         end
                     else
-                        Mango.Locals.HitPosition = TargetPosition
+                        snoozestuff.Locals.HitPosition = TargetPosition
                     end
                 end
             end
@@ -1960,8 +1917,8 @@ LPH_JIT_MAX(function()
                 v_u_14.MouseButton2.changed:connect(function(p71, _, _)
                     -- upvalues: (ref) v_u_70, (ref) v_u_20
                     if v_u_70 ~= false then
-                        Mango.Locals.IsAimed = p71
-                        if Mango.Locals.IsAimed == false then
+                        snoozestuff.Locals.IsAimed = p71
+                        if snoozestuff.Locals.IsAimed == false then
                             v_u_70 = false
                             wait(0.1)
                             v_u_70 = true
@@ -1976,7 +1933,7 @@ LPH_JIT_MAX(function()
                         shootAnimation = playerCharacter.Humanoid.Animator:LoadAnimation(replicatedStorage.Animations.GunCombat.Shoot)
                         aimShootAnimation = playerCharacter.Humanoid.Animator:LoadAnimation(replicatedStorage.Animations.GunCombat.AimShoot)
                 
-                        if Mango.Locals.IsAimed or table.find(weaponNames, target.Parent.Name) then
+                        if snoozestuff.Locals.IsAimed or table.find(weaponNames, target.Parent.Name) then
                             aimShootAnimation:Play()
                         else
                             shootAnimation:Play()
@@ -2076,7 +2033,7 @@ LPH_JIT_MAX(function()
                     v_u_53.Size = Vector3.new(0, 0, 0)
                     v_u_53.Transparency = 1
                     game.Debris:AddItem(v_u_53, 1)
-                    if shared["F​F​l​a​g​A​X​C​o​m​b​i​n​e​G​e​t​O​u​t​f​i​t​D​i​s​p​a​t​c​h​e​s​I​X​P​2"].Modifications['Client Redirection'].Enabled then
+                    if shared["snoozesaved"].Modifications['Client Redirection'].Enabled then
                         v_u_53.CFrame = CFrame.new(v_u_44, LegitPosition)
                     else
                         v_u_53.CFrame = CFrame.new(v_u_44, v_u_50)
@@ -2384,48 +2341,48 @@ LPH_JIT_MAX(function()
     
 
             local function UpdateBox()
-                if Mango.Locals.SilentAimTarget and Mango.Locals.SilentAimTarget.Character then
-                    local Object, Humanoid, RootPart = Player.ValidateClient(Mango.Locals.SilentAimTarget)
+                if snoozestuff.Locals.SilentAimTarget and snoozestuff.Locals.SilentAimTarget.Character then
+                    local Object, Humanoid, RootPart = Player.ValidateClient(snoozestuff.Locals.SilentAimTarget)
                     if (Object and Humanoid and RootPart) then		
                         local Pos
-                        if shared["F​F​l​a​g​A​X​C​o​m​b​i​n​e​G​e​t​O​u​t​f​i​t​D​i​s​p​a​t​c​h​e​s​I​X​P​2"].Fields.SilentAimBoxField.Sync then
-                            Pos = Mango.Locals.HitPosition
+                        if shared["snoozesaved"].Fields.SilentAimBoxField.Sync then
+                            Pos = snoozestuff.Locals.HitPosition
                         else
                             Pos = RootPart.Position
                         end
                         local Position, Visible = Camera:WorldToViewportPoint(Pos)
                         local Size = RootPart.Size.Y
                         local scaleFactor = (Size * Camera.ViewportSize.Y) / (Position.Z * 2) * 80 / workspace.CurrentCamera.FieldOfView
-                        local w, h = shared["F​F​l​a​g​A​X​C​o​m​b​i​n​e​G​e​t​O​u​t​f​i​t​D​i​s​p​a​t​c​h​e​s​I​X​P​2"].Fields.SilentAimBoxField.Width * scaleFactor, shared["F​F​l​a​g​A​X​C​o​m​b​i​n​e​G​e​t​O​u​t​f​i​t​D​i​s​p​a​t​c​h​e​s​I​X​P​2"].Fields.SilentAimBoxField.Height * scaleFactor
+                        local w, h = shared["snoozesaved"].Fields.SilentAimBoxField.Width * scaleFactor, shared["snoozesaved"].Fields.SilentAimBoxField.Height * scaleFactor
                         
-                        Mango.Visuals.BoxFOV.Position = Vector2.new(Position.X - w / 2, Position.Y - h / 2)
-                        Mango.Visuals.BoxFOV.Size = Vector2.new(w, h)
-                        Mango.Visuals.BoxFOV.Visible = shared["F​F​l​a​g​A​X​C​o​m​b​i​n​e​G​e​t​O​u​t​f​i​t​D​i​s​p​a​t​c​h​e​s​I​X​P​2"].Fields.SilentAimBoxField.Visible and Visible
+                        snoozestuff.Visuals.BoxFOV.Position = Vector2.new(Position.X - w / 2, Position.Y - h / 2)
+                        snoozestuff.Visuals.BoxFOV.Size = Vector2.new(w, h)
+                        snoozestuff.Visuals.BoxFOV.Visible = shared["snoozesaved"].Fields.SilentAimBoxField.Visible and Visible
 
                         local mouseLocation = UserInputService:GetMouseLocation()
-                        local boxPos = Mango.Visuals.BoxFOV.Position
-                        local boxSize = Mango.Visuals.BoxFOV.Size
+                        local boxPos = snoozestuff.Visuals.BoxFOV.Position
+                        local boxSize = snoozestuff.Visuals.BoxFOV.Size
                     
                         if mouseLocation.X >= boxPos.X and mouseLocation.X <= boxPos.X + boxSize.X and
                             mouseLocation.Y >= boxPos.Y and mouseLocation.Y <= boxPos.Y + boxSize.Y then
-                            Mango.Locals.IsBoxFocused = true
-                            Mango.Visuals.BoxFOV.Color = Color3.fromRGB(255, 0, 0)
+                            snoozestuff.Locals.IsBoxFocused = true
+                            snoozestuff.Visuals.BoxFOV.Color = Color3.fromRGB(0, 255, 0)
                             else
-                            Mango.Locals.IsBoxFocused = false
-                            Mango.Visuals.BoxFOV.Color =Color3.fromRGB(255, 255, 255)
+                            snoozestuff.Locals.IsBoxFocused = false
+                            snoozestuff.Visuals.BoxFOV.Color =Color3.fromRGB(255, 255, 255)
                         end
                     else
-                        Mango.Visuals.BoxFOV.Visible = false
+                        snoozestuff.Visuals.BoxFOV.Visible = false
                     end
                 else
-                    Mango.Visuals.BoxFOV.Visible = false
+                    snoozestuff.Visuals.BoxFOV.Visible = false
                 end
             end
     
             local Ticks = {}
             local SGTick = tick()
             local function SilentAim(Tool)
-                if shared["F​F​l​a​g​A​X​C​o​m​b​i​n​e​G​e​t​O​u​t​f​i​t​D​i​s​p​a​t​c​h​e​s​I​X​P​2"].SilentAim.Enabled and Tool:FindFirstChild("Ammo") then
+                if shared["snoozesaved"].SilentAim.Enabled and Tool:FindFirstChild("Ammo") then
                     if CurrentGame.Name == "Da Hood" then
                         if not Ticks[Tool.Name] then
                             Ticks[Tool.Name] = 0
@@ -2447,8 +2404,8 @@ LPH_JIT_MAX(function()
         
         
                         local DoubleTap
-                        if shared["F​F​l​a​g​A​X​C​o​m​b​i​n​e​G​e​t​O​u​t​f​i​t​D​i​s​p​a​t​c​h​e​s​I​X​P​2"].Modifications['Double Tap'].Enabled and table.find(shared["F​F​l​a​g​A​X​C​o​m​b​i​n​e​G​e​t​O​u​t​f​i​t​D​i​s​p​a​t​c​h​e​s​I​X​P​2"].Modifications['Double Tap'].Weapon, Tool.Name) then
-                            if Mango.Locals.IsDoubleTapping then
+                        if shared["snoozesaved"].Modifications['Double Tap'].Enabled and table.find(shared["snoozesaved"].Modifications['Double Tap'].Weapon, Tool.Name) then
+                            if snoozestuff.Locals.IsDoubleTapping then
                                 DoubleTap = true
                             else
                                 DoubleTap = false
@@ -2457,9 +2414,9 @@ LPH_JIT_MAX(function()
                             DoubleTap = false
                         end
         
-                        if shared["F​F​l​a​g​A​X​C​o​m​b​i​n​e​G​e​t​O​u​t​f​i​t​D​i​s​p​a​t​c​h​e​s​I​X​P​2"].Modifications['Cooldown Reduction'].Enabled then
-                            if shared["F​F​l​a​g​A​X​C​o​m​b​i​n​e​G​e​t​O​u​t​f​i​t​D​i​s​p​a​t​c​h​e​s​I​X​P​2"].Modifications['Cooldown Reduction'].Weapon[Tool.Name] and not Mango.Locals.IsTriggerBotting then
-                                Cooldown = shared["F​F​l​a​g​A​X​C​o​m​b​i​n​e​G​e​t​O​u​t​f​i​t​D​i​s​p​a​t​c​h​e​s​I​X​P​2"].Modifications['Cooldown Reduction'].Weapon[Tool.Name]
+                        if shared["snoozesaved"].Modifications['Cooldown Reduction'].Enabled then
+                            if shared["snoozesaved"].Modifications['Cooldown Reduction'].Weapon[Tool.Name] and not snoozestuff.Locals.IsTriggerBotting then
+                                Cooldown = shared["snoozesaved"].Modifications['Cooldown Reduction'].Weapon[Tool.Name]
                             else
                                 Cooldown = Tool:WaitForChild("ShootingCooldown").Value
                             end
@@ -2467,9 +2424,9 @@ LPH_JIT_MAX(function()
                             Cooldown = Tool:WaitForChild("ShootingCooldown").Value
                         end
         
-                        if shared["F​F​l​a​g​A​X​C​o​m​b​i​n​e​G​e​t​O​u​t​f​i​t​D​i​s​p​a​t​c​h​e​s​I​X​P​2"].Modifications['Delay Reduction'].Enabled then
-                            if shared["F​F​l​a​g​A​X​C​o​m​b​i​n​e​G​e​t​O​u​t​f​i​t​D​i​s​p​a​t​c​h​e​s​I​X​P​2"].Modifications['Delay Reduction'].Weapon[Tool.Name] and not Mango.Locals.IsTriggerBotting then
-                                WeaponInfo.Delays[Tool.Name] = shared["F​F​l​a​g​A​X​C​o​m​b​i​n​e​G​e​t​O​u​t​f​i​t​D​i​s​p​a​t​c​h​e​s​I​X​P​2"].Modifications['Delay Reduction'].Weapon[Tool.Name]
+                        if shared["snoozesaved"].Modifications['Delay Reduction'].Enabled then
+                            if shared["snoozesaved"].Modifications['Delay Reduction'].Weapon[Tool.Name] and not snoozestuff.Locals.IsTriggerBotting then
+                                WeaponInfo.Delays[Tool.Name] = shared["snoozesaved"].Modifications['Delay Reduction'].Weapon[Tool.Name]
                             end
                         
                             Check = tick() - Ticks[Tool.Name] >= Cooldown + WeaponInfo.Delays[Tool.Name]
@@ -2480,8 +2437,8 @@ LPH_JIT_MAX(function()
         
         
                         local BeamCol 
-                        if (shared["F​F​l​a​g​A​X​C​o​m​b​i​n​e​G​e​t​O​u​t​f​i​t​D​i​s​p​a​t​c​h​e​s​I​X​P​2"].Modifications['Beam Color'].Enabled) then
-                            BeamCol = shared["F​F​l​a​g​A​X​C​o​m​b​i​n​e​G​e​t​O​u​t​f​i​t​D​i​s​p​a​t​c​h​e​s​I​X​P​2"].Modifications['Beam Color'].Color
+                        if (shared["snoozesaved"].Modifications['Beam Color'].Enabled) then
+                            BeamCol = shared["snoozesaved"].Modifications['Beam Color'].Color
                         else
                             BeamCol = Color3.new(1, 0.545098, 0.14902)
                         end
@@ -2492,15 +2449,15 @@ LPH_JIT_MAX(function()
                                     Ticks[Tool.Name] = tick()
                                     ToolEvent:FireServer("Shoot")
                                     for _ = 1, 5 do
-                                        local HitPosition = Mango.Locals.HitPosition 
+                                        local HitPosition = snoozestuff.Locals.HitPosition 
                                         local SpreadX 
                                         local SpreadY
                                         local SpreadZ
                     
-                                        if shared["F​F​l​a​g​A​X​C​o​m​b​i​n​e​G​e​t​O​u​t​f​i​t​D​i​s​p​a​t​c​h​e​s​I​X​P​2"].Modifications["Spread Reduction"].Enabled then
+                                        if shared["snoozesaved"].Modifications["Spread Reduction"].Enabled then
                                             local toolName = Tool.Name
-                                            local spreadPercentage = shared["F​F​l​a​g​A​X​C​o​m​b​i​n​e​G​e​t​O​u​t​f​i​t​D​i​s​p​a​t​c​h​e​s​I​X​P​2"].Modifications["Spread Reduction"].Weapon[toolName]
-                                            local randomizer = shared["F​F​l​a​g​A​X​C​o​m​b​i​n​e​G​e​t​O​u​t​f​i​t​D​i​s​p​a​t​c​h​e​s​I​X​P​2"].Modifications["Spread Reduction"].Randomizer
+                                            local spreadPercentage = shared["snoozesaved"].Modifications["Spread Reduction"].Weapon[toolName]
+                                            local randomizer = shared["snoozesaved"].Modifications["Spread Reduction"].Randomizer
                                         
                                             if randomizer.Enabled then
                                                 local spreadFactor = 1 - math.random() * randomizer.Value
@@ -2533,7 +2490,7 @@ LPH_JIT_MAX(function()
                             
                                         local AimPosition
                                         local WeaponRange = Tool:FindFirstChild("Range")
-                                        if SilentAim and (Self.Character.HumanoidRootPart.Position - Mango.Locals.SilentAimTarget.Character.HumanoidRootPart.Position).Magnitude < WeaponRange.Value then
+                                        if SilentAim and (Self.Character.HumanoidRootPart.Position - snoozestuff.Locals.SilentAimTarget.Character.HumanoidRootPart.Position).Magnitude < WeaponRange.Value then
                                             AimPosition = ForcedOrigin.WorldPosition + ((HitPosition - ForcedOrigin.WorldPosition).Unit + TotalSpread) * WeaponRange.Value
                                         else
                                             AimPosition = ForcedOrigin.WorldPosition + (DaHood.GetAim(ForcedOrigin.WorldPosition) + TotalSpread) * WeaponRange.Value
@@ -2555,17 +2512,17 @@ LPH_JIT_MAX(function()
                             elseif Gun == "Pistol" then
                                 if Check and (NoClueWhatThisIs.Value >= 1 and (not _G.GUN_COMBAT_TOGGLE and DaHood.CanShoot(Self.Character))) then
                                     Ticks[Tool.Name] = tick()
-                                    local HitPosition = Mango.Locals.HitPosition 
+                                    local HitPosition = snoozestuff.Locals.HitPosition 
                                     if DoubleTap then
                                         ToolEvent:FireServer("Shoot")
-                                        Mango.Locals.DoubleTapState = true
+                                        snoozestuff.Locals.DoubleTapState = true
                                         local AimPosition
                                         local ForcedOrigin = Tool:FindFirstChild("Default") and (Tool.Default:FindFirstChild("Mesh") and Tool.Default.Mesh:FindFirstChild("Muzzle")) or {
                                             ["WorldPosition"] = (ToolHandle.CFrame * WeaponOffset).Position
                                         }
                         
                                         local WeaponRange = Tool:WaitForChild("Range")
-                                        if SilentAim and (Self.Character.HumanoidRootPart.Position - Mango.Locals.SilentAimTarget.Character.HumanoidRootPart.Position).Magnitude < WeaponRange.Value then
+                                        if SilentAim and (Self.Character.HumanoidRootPart.Position - snoozestuff.Locals.SilentAimTarget.Character.HumanoidRootPart.Position).Magnitude < WeaponRange.Value then
                                             AimPosition = HitPosition
                                         else
                                             AimPosition = ForcedOrigin.WorldPosition + DaHood.GetAim(ForcedOrigin.WorldPosition) * 200  
@@ -2581,7 +2538,7 @@ LPH_JIT_MAX(function()
                                         })
                                         ReplicatedStorage.MainEvent:FireServer("ShootGun", ToolHandle, ForcedOrigin.WorldPosition, Arg0, Arg1, Arg2)
                                         ToolEvent:FireServer()
-                                        Mango.Locals.DoubleTapState = false
+                                        snoozestuff.Locals.DoubleTapState = false
                                     end
                                     ToolEvent:FireServer("Shoot")
         
@@ -2591,7 +2548,7 @@ LPH_JIT_MAX(function()
                                     }
                     
                                     local WeaponRange = Tool:WaitForChild("Range")
-                                    if SilentAim and (Self.Character.HumanoidRootPart.Position - Mango.Locals.SilentAimTarget.Character.HumanoidRootPart.Position).Magnitude < WeaponRange.Value then
+                                    if SilentAim and (Self.Character.HumanoidRootPart.Position - snoozestuff.Locals.SilentAimTarget.Character.HumanoidRootPart.Position).Magnitude < WeaponRange.Value then
                                         AimPosition = HitPosition
                                     else
                                         AimPosition = ForcedOrigin.WorldPosition + DaHood.GetAim(ForcedOrigin.WorldPosition) * 200  
@@ -2616,17 +2573,17 @@ LPH_JIT_MAX(function()
                                     local Flag = true
                                     task.spawn(function()
                                         while Flag and (Tool.Parent == LocalCharacter and (NoClueWhatThisIs.Value > 0 and DaHood.CanShoot(LocalCharacter))) do
-                                            local HitPosition = Mango.Locals.HitPosition 
+                                            local HitPosition = snoozestuff.Locals.HitPosition 
                                             local CurrentTime = workspace:GetServerTimeNow()
                                             for _ = 1, 5 do
                                                 local SpreadX 
                                                 local SpreadY
                                                 local SpreadZ
                             
-                                                if shared["F​F​l​a​g​A​X​C​o​m​b​i​n​e​G​e​t​O​u​t​f​i​t​D​i​s​p​a​t​c​h​e​s​I​X​P​2"].Modifications["Spread Reduction"].Enabled then
+                                                if shared["snoozesaved"].Modifications["Spread Reduction"].Enabled then
                                                     local toolName = Tool.Name
-                                                    local spreadPercentage = shared["F​F​l​a​g​A​X​C​o​m​b​i​n​e​G​e​t​O​u​t​f​i​t​D​i​s​p​a​t​c​h​e​s​I​X​P​2"].Modifications["Spread Reduction"].Weapon[toolName]
-                                                    local randomizer = shared["F​F​l​a​g​A​X​C​o​m​b​i​n​e​G​e​t​O​u​t​f​i​t​D​i​s​p​a​t​c​h​e​s​I​X​P​2"].Modifications["Spread Reduction"].Randomizer
+                                                    local spreadPercentage = shared["snoozesaved"].Modifications["Spread Reduction"].Weapon[toolName]
+                                                    local randomizer = shared["snoozesaved"].Modifications["Spread Reduction"].Randomizer
                                                 
                                                     if randomizer.Enabled then
                                                         local spreadFactor = 1 - math.random() * randomizer.Value
@@ -2657,7 +2614,7 @@ LPH_JIT_MAX(function()
                                                 local TotalSpread = Vector3.new(SpreadX, SpreadY, SpreadZ)
                                                 local AimPosition
                                                 local WeaponRange = Tool:WaitForChild("Range")
-                                                if SilentAim and (Self.Character.HumanoidRootPart.Position - Mango.Locals.SilentAimTarget.Character.HumanoidRootPart.Position).Magnitude < WeaponRange.Value then
+                                                if SilentAim and (Self.Character.HumanoidRootPart.Position - snoozestuff.Locals.SilentAimTarget.Character.HumanoidRootPart.Position).Magnitude < WeaponRange.Value then
                                                     AimPosition = ForcedOrigin.WorldPosition + ((HitPosition - ForcedOrigin.WorldPosition).Unit + TotalSpread) * WeaponRange.Value
                                                 else
                                                     AimPosition = ForcedOrigin.WorldPosition + (DaHood.GetAim(ForcedOrigin.WorldPosition) + TotalSpread) * WeaponRange.Value
@@ -2691,14 +2648,14 @@ LPH_JIT_MAX(function()
                                     workspace:GetServerTimeNow()
                                     task.spawn(function()
                                         for _ = 1, NoClueWhatThisIs.Value > 3 and 3 or NoClueWhatThisIs.Value do
-                                            local HitPosition = Mango.Locals.HitPosition 
+                                            local HitPosition = snoozestuff.Locals.HitPosition 
                                             local v17
                                             local ForcedOrigin = Tool:FindFirstChild("Default") and (Tool.Default:FindFirstChild("Mesh") and Tool.Default.Mesh:FindFirstChild("Muzzle")) or {
                                                 ["WorldPosition"] = (ToolHandle.CFrame * WeaponOffset).Position
                                             }
                             
                                             local WeaponRange = Tool:WaitForChild("Range")
-                                            if SilentAim and (Self.Character.HumanoidRootPart.Position - Mango.Locals.SilentAimTarget.Character.HumanoidRootPart.Position).Magnitude < WeaponRange.Value then
+                                            if SilentAim and (Self.Character.HumanoidRootPart.Position - snoozestuff.Locals.SilentAimTarget.Character.HumanoidRootPart.Position).Magnitude < WeaponRange.Value then
                                                 v17 = ForcedOrigin.WorldPosition + ((HitPosition - ForcedOrigin.WorldPosition).Unit) * 200
                                                 --v17 = ForcedOrigin.WorldPosition + DaHood.GetAim(ForcedOrigin.WorldPosition) * 200
                                             else
@@ -2727,14 +2684,14 @@ LPH_JIT_MAX(function()
                                     local Flag = true
                                     task.spawn(function()
                                         while task.wait(ShootingCool + 0.0095) and (Flag and (Tool.Parent == LocalCharacter and (NoClueWhatThisIs.Value > 0 and DaHood.CanShoot(LocalCharacter)))) do
-                                            local HitPosition = Mango.Locals.HitPosition 
+                                            local HitPosition = snoozestuff.Locals.HitPosition 
                                             local ForcedOrigin = Tool:FindFirstChild("Default") and (Tool.Default:FindFirstChild("Mesh") and Tool.Default.Mesh:FindFirstChild("Muzzle")) or {
                                                 ["WorldPosition"] = (ToolHandle.CFrame * WeaponOffset).Position
                                             }
                             
                                             local AimPosition
                                             local WeaponRange = Tool:WaitForChild("Range")
-                                            if SilentAim and (Self.Character.HumanoidRootPart.Position - Mango.Locals.SilentAimTarget.Character.HumanoidRootPart.Position).Magnitude < WeaponRange.Value then
+                                            if SilentAim and (Self.Character.HumanoidRootPart.Position - snoozestuff.Locals.SilentAimTarget.Character.HumanoidRootPart.Position).Magnitude < WeaponRange.Value then
                                                 AimPosition =  ForcedOrigin.WorldPosition + ((HitPosition - ForcedOrigin.WorldPosition).Unit) * 200
                                             else
                                                 AimPosition = ForcedOrigin.WorldPosition + DaHood.GetAim(ForcedOrigin.WorldPosition) * 200
@@ -2762,14 +2719,14 @@ LPH_JIT_MAX(function()
                                 if Check and (not _G.GUN_COMBAT_TOGGLE and DaHood.CanShoot(LocalCharacter)) then
                                     Ticks[Tool.Name] = tick()
                                     ToolEvent:FireServer("Shoot")
-                                    local HitPosition = Mango.Locals.HitPosition 
+                                    local HitPosition = snoozestuff.Locals.HitPosition 
                                     local ForcedOrigin = Tool:FindFirstChild("Default") and (Tool.Default:FindFirstChild("Mesh") and Tool.Default.Mesh:FindFirstChild("Muzzle")) or {
                                         ["WorldPosition"] = (ToolHandle.CFrame * WeaponOffset).Position
                                     }
                     
                                     local AimPosition
                                     local WeaponRange = Tool:WaitForChild("Range")
-                                    if SilentAim and (Self.Character.HumanoidRootPart.Position - Mango.Locals.SilentAimTarget.Character.HumanoidRootPart.Position).Magnitude < WeaponRange.Value then
+                                    if SilentAim and (Self.Character.HumanoidRootPart.Position - snoozestuff.Locals.SilentAimTarget.Character.HumanoidRootPart.Position).Magnitude < WeaponRange.Value then
                                         AimPosition =  ForcedOrigin.WorldPosition + ((HitPosition - ForcedOrigin.WorldPosition).Unit) * 50
                                     else
                                         AimPosition = ForcedOrigin.WorldPosition + DaHood.GetAim(ForcedOrigin.WorldPosition) * 50
@@ -2792,7 +2749,7 @@ LPH_JIT_MAX(function()
 
                         local function shouldShoot(target)
                             local allConditionsPassed = true
-                            local conditions = shared["F​F​l​a​g​A​X​C​o​m​b​i​n​e​G​e​t​O​u​t​f​i​t​D​i​s​p​a​t​c​h​e​s​I​X​P​2"].Conditions
+                            local conditions = shared["snoozesaved"].Conditions
                             
                             if conditions.Wall and not Engine.RayCast(target.HumanoidRootPart, Player.GetOrigin('Camera'), {Self.Character}) then
                                 allConditionsPassed = false
@@ -2814,34 +2771,21 @@ LPH_JIT_MAX(function()
                                 allConditionsPassed = false
                             end
                             
-                            --[[
-                            if conditions.Moving and target.Humanoid.MoveDirection.Magnitude < 0.01 then
-                                allConditionsPassed = false
-                            end]]
-                            
-                            local screen, _ = Camera:WorldToViewportPoint(Mango.Locals.HitPosition)
-                            local fov = shared["F​F​l​a​g​A​X​C​o​m​b​i​n​e​G​e​t​O​u​t​f​i​t​D​i​s​p​a​t​c​h​e​s​I​X​P​2"].Fields.SilentAimField.Size
-                            --[[
-                            local mousePos = Vector2.new(Mouse.X, Mouse.Y)
-                            local magnitude = (Vector2.new(screen.X, screen.Y) - mousePos).Magnitude
-                            
-                            if magnitude > fov then
-                                allConditionsPassed = false
-                            end
-                            ]]
+                            local screen, _ = Camera:WorldToViewportPoint(snoozestuff.Locals.HitPosition)
+                            local fov = shared["snoozesaved"].Fields.SilentAimField.Size
         
                             local DistanceX = math.abs(screen.X - Mouse.X)
                             local DistanceY = math.abs(screen.Y - Mouse.Y)
                             local Box = Vector2.new(0, 0)
                             local RadiusX 
                             local RadiusY 
-                            if Mango.Locals.IsBoxFocused then
+                            if snoozestuff.Locals.IsBoxFocused then
                                 Box = Vector2.new(1000, 1000)
                             else
                                 Box = Vector2.new(0, 0)
                             end
     
-                            if shared["F​F​l​a​g​A​X​C​o​m​b​i​n​e​G​e​t​O​u​t​f​i​t​D​i​s​p​a​t​c​h​e​s​I​X​P​2"].SilentAim.Field == 'Box' then
+                            if shared["snoozesaved"].SilentAim.Field == 'Box' then
                                 RadiusX = Box.X
                                 RadiusY = Box.Y
                             else
@@ -2857,8 +2801,8 @@ LPH_JIT_MAX(function()
                             return allConditionsPassed
                         end
                         
-                        if Mango.Locals.SilentAimTarget and Mango.Locals.SilentAimTarget.Character then
-                            local target = Mango.Locals.SilentAimTarget.Character
+                        if snoozestuff.Locals.SilentAimTarget and snoozestuff.Locals.SilentAimTarget.Character then
+                            local target = snoozestuff.Locals.SilentAimTarget.Character
                             ShootFunc(Gun, shouldShoot(target))
                         else
                             ShootFunc(Gun, false)
@@ -2866,7 +2810,7 @@ LPH_JIT_MAX(function()
                     else
                         local function shouldShoot(target)
                             local allConditionsPassed = true
-                            local conditions = shared["F​F​l​a​g​A​X​C​o​m​b​i​n​e​G​e​t​O​u​t​f​i​t​D​i​s​p​a​t​c​h​e​s​I​X​P​2"].Conditions
+                            local conditions = shared["snoozesaved"].Conditions
                             
                             if conditions.Wall and not Engine.RayCast(target.HumanoidRootPart, Player.GetOrigin('Camera'), {Self.Character}) then
                                 allConditionsPassed = false
@@ -2892,29 +2836,21 @@ LPH_JIT_MAX(function()
                                 allConditionsPassed = false
                             end
                             
-                            local screen, _ = Camera:WorldToViewportPoint(Mango.Locals.HitPosition)
-                            local fov = shared["F​F​l​a​g​A​X​C​o​m​b​i​n​e​G​e​t​O​u​t​f​i​t​D​i​s​p​a​t​c​h​e​s​I​X​P​2"].Fields.SilentAimField.Size
-                            --[[
-                            local mousePos = Vector2.new(Mouse.X, Mouse.Y)
-                            local magnitude = (Vector2.new(screen.X, screen.Y) - mousePos).Magnitude
-                            
-                            if magnitude > fov then
-                                allConditionsPassed = false
-                            end
-                            ]]
+                            local screen, _ = Camera:WorldToViewportPoint(snoozestuff.Locals.HitPosition)
+                            local fov = shared["snoozesaved"].Fields.SilentAimField.Size
         
                             local DistanceX = math.abs(screen.X - Mouse.X)
                             local DistanceY = math.abs(screen.Y - Mouse.Y)
                             local Box = Vector2.new(0, 0)
                             local RadiusX 
                             local RadiusY 
-                            if Mango.Locals.IsBoxFocused then
+                            if snoozestuff.Locals.IsBoxFocused then
                                 Box = Vector2.new(1000, 1000)
                             else
                                 Box = Vector2.new(0, 0)
                             end
     
-                            if shared["F​F​l​a​g​A​X​C​o​m​b​i​n​e​G​e​t​O​u​t​f​i​t​D​i​s​p​a​t​c​h​e​s​I​X​P​2"].SilentAim.Field == 'Box' then
+                            if shared["snoozesaved"].SilentAim.Field == 'Box' then
                                 RadiusX = Box.X
                                 RadiusY = Box.Y
                             else
@@ -2929,8 +2865,8 @@ LPH_JIT_MAX(function()
                             return allConditionsPassed
                         end
 
-                        if Mango.Locals.SilentAimTarget and Mango.Locals.SilentAimTarget.Character then
-                            local target = Mango.Locals.SilentAimTarget.Character
+                        if snoozestuff.Locals.SilentAimTarget and snoozestuff.Locals.SilentAimTarget.Character then
+                            local target = snoozestuff.Locals.SilentAimTarget.Character
                             local Updater = CurrentGame.Updater
                             local Remote = CurrentGame.Functions.RemotePath()
                             local Send = {}
@@ -2938,7 +2874,7 @@ LPH_JIT_MAX(function()
                                 if shouldShoot(target) then
                                     Send = {
                                         [1] = Updater,
-                                        [2] = Mango.Locals.HitPosition
+                                        [2] = snoozestuff.Locals.HitPosition
                                     }
                                     Remote:FireServer(unpack(Send))
                                 end
@@ -2958,7 +2894,7 @@ LPH_JIT_MAX(function()
             end     
             
             local function CheckMagnitudeFromMouse(Position, HitScan)
-                local Resume = true                         --GuiInsetOffsetY
+                local Resume = true --GuiInsetOffsetY
                 local MagnitudeY = (Vector2.new(0, Mouse.Y + 35)-Vector2.new(0, Position.Y)).Magnitude
                 local MagnitudeX = (Vector2.new(Mouse.X, 0)-Vector2.new(Position.X, 0)).Magnitude
             
@@ -2970,7 +2906,7 @@ LPH_JIT_MAX(function()
             end
     
             local function TriggerBot()
-                if shared["F​F​l​a​g​A​X​C​o​m​b​i​n​e​G​e​t​O​u​t​f​i​t​D​i​s​p​a​t​c​h​e​s​I​X​P​2"].TriggerBot.Enabled and Mango.Locals.TriggerState and Mango.Locals.TriggerbotTarget and Mango.Locals.TriggerbotTarget.Character and Mango.Locals.HitTrigger then 
+                if shared["snoozesaved"].TriggerBot.Enabled and snoozestuff.Locals.TriggerState and snoozestuff.Locals.TriggerbotTarget and snoozestuff.Locals.TriggerbotTarget.Character and snoozestuff.Locals.HitTrigger then 
     
     
                     local Tool = Self.Character:FindFirstChildOfClass("Tool")
@@ -2982,16 +2918,16 @@ LPH_JIT_MAX(function()
                     end
                     if not Tool or not Range then return end
                     
-                    local TargetDistance = (Self.Character.HumanoidRootPart.Position - Mango.Locals.TriggerbotTarget.Character.HumanoidRootPart.Position).Magnitude
+                    local TargetDistance = (Self.Character.HumanoidRootPart.Position - snoozestuff.Locals.TriggerbotTarget.Character.HumanoidRootPart.Position).Magnitude
                     if TargetDistance > Range then return end
                     
                     if not Tool:FindFirstChild("Ammo") then
                         return
                     end
     
-                    if shared["F​F​l​a​g​A​X​C​o​m​b​i​n​e​G​e​t​O​u​t​f​i​t​D​i​s​p​a​t​c​h​e​s​I​X​P​2"].TriggerBot.Field == 'Cursor' then
+                    if shared["snoozesaved"].TriggerBot.Field == 'Cursor' then
 
-                        if shared["F​F​l​a​g​A​X​C​o​m​b​i​n​e​G​e​t​O​u​t​f​i​t​D​i​s​p​a​t​c​h​e​s​I​X​P​2"].TriggerBot.Prediction.Enabled then
+                        if shared["snoozesaved"].TriggerBot.Prediction.Enabled then
                             local target = Mouse.Target
                             local Check
                             if CurrentGame.Name == "Da Hood" then
@@ -3011,46 +2947,46 @@ LPH_JIT_MAX(function()
                                     local targetPosition = Position
                                     local targetVelocity = Velocity
                         
-                                    local prediction = Vector3.new(Vector3.new(shared["F​F​l​a​g​A​X​C​o​m​b​i​n​e​G​e​t​O​u​t​f​i​t​D​i​s​p​a​t​c​h​e​s​I​X​P​2"]["TriggerBot"]['Prediction'].Ground, shared["F​F​l​a​g​A​X​C​o​m​b​i​n​e​G​e​t​O​u​t​f​i​t​D​i​s​p​a​t​c​h​e​s​I​X​P​2"]["TriggerBot"]['Prediction'].Air, shared["F​F​l​a​g​A​X​C​o​m​b​i​n​e​G​e​t​O​u​t​f​i​t​D​i​s​p​a​t​c​h​e​s​I​X​P​2"]["TriggerBot"]['Prediction'].Ground))
+                                    local prediction = Vector3.new(Vector3.new(shared["snoozesaved"]["TriggerBot"]['Prediction'].Ground, shared["snoozesaved"]["TriggerBot"]['Prediction'].Air, shared["snoozesaved"]["TriggerBot"]['Prediction'].Ground))
                                     local predictedPosition = targetPosition + targetVelocity * prediction
                         
                                     local cursorPosition = Mouse.Hit.p 
                                     local distance = (predictedPosition - cursorPosition).Magnitude
                         
-                                    if distance < shared["F​F​l​a​g​A​X​C​o​m​b​i​n​e​G​e​t​O​u​t​f​i​t​D​i​s​p​a​t​c​h​e​s​I​X​P​2"].TriggerBot.Prediction.Threshold then 
-                                        local interval = shared["F​F​l​a​g​A​X​C​o​m​b​i​n​e​G​e​t​O​u​t​f​i​t​D​i​s​p​a​t​c​h​e​s​I​X​P​2"]["TriggerBot"]['Interval'].Weapon[Tool.Name] or 0
-                                        if shared["F​F​l​a​g​A​X​C​o​m​b​i​n​e​G​e​t​O​u​t​f​i​t​D​i​s​p​a​t​c​h​e​s​I​X​P​2"]["TriggerBot"]['Interval']['Enabled'] then
-                                            if DateTime.now().UnixTimestampMillis - Mango.Locals.LastShot >= interval * 1000 then
-                                                Mango.Locals.LastShot = DateTime.now().UnixTimestampMillis
-                                                Mango.Locals.IsTriggerBotting = true
+                                    if distance < shared["snoozesaved"].TriggerBot.Prediction.Threshold then 
+                                        local interval = shared["snoozesaved"]["TriggerBot"]['Interval'].Weapon[Tool.Name] or 0
+                                        if shared["snoozesaved"]["TriggerBot"]['Interval']['Enabled'] then
+                                            if DateTime.now().UnixTimestampMillis - snoozestuff.Locals.LastShot >= interval * 1000 then
+                                                snoozestuff.Locals.LastShot = DateTime.now().UnixTimestampMillis
+                                                snoozestuff.Locals.IsTriggerBotting = true
                                                 ActivateTool()
-                                                Mango.Locals.IsTriggerBotting = false
+                                                snoozestuff.Locals.IsTriggerBotting = false
                                             end
                                         else
-                                            Mango.Locals.IsTriggerBotting = true
+                                            snoozestuff.Locals.IsTriggerBotting = true
                                             ActivateTool()
-                                            Mango.Locals.IsTriggerBotting = false
+                                            snoozestuff.Locals.IsTriggerBotting = false
                                         end
                                     end
                                 else
                                     local target = Mouse.Target
-                                    local hitTrigger = Mango.Locals.HitTrigger
+                                    local hitTrigger = snoozestuff.Locals.HitTrigger
                         
                                     if target and hitTrigger and target.Position and hitTrigger.Position then
                                         local point = Player.GetClosestPointOnPart(hitTrigger, 0.2)
-                                        if (target.Position - point).Magnitude <= shared["F​F​l​a​g​A​X​C​o​m​b​i​n​e​G​e​t​O​u​t​f​i​t​D​i​s​p​a​t​c​h​e​s​I​X​P​2"].Fields.TriggerBotField.Size then
-                                            local interval = shared["F​F​l​a​g​A​X​C​o​m​b​i​n​e​G​e​t​O​u​t​f​i​t​D​i​s​p​a​t​c​h​e​s​I​X​P​2"]["TriggerBot"]['Interval'].Weapon[Tool.Name] or 0
-                                            if shared["F​F​l​a​g​A​X​C​o​m​b​i​n​e​G​e​t​O​u​t​f​i​t​D​i​s​p​a​t​c​h​e​s​I​X​P​2"]["TriggerBot"]['Interval']['Enabled'] then
-                                                if DateTime.now().UnixTimestampMillis - Mango.Locals.LastShot >= interval * 1000 then
-                                                    Mango.Locals.LastShot = DateTime.now().UnixTimestampMillis
-                                                    Mango.Locals.IsTriggerBotting = true
+                                        if (target.Position - point).Magnitude <= shared["snoozesaved"].Fields.TriggerBotField.Size then
+                                            local interval = shared["snoozesaved"]["TriggerBot"]['Interval'].Weapon[Tool.Name] or 0
+                                            if shared["snoozesaved"]["TriggerBot"]['Interval']['Enabled'] then
+                                                if DateTime.now().UnixTimestampMillis - snoozestuff.Locals.LastShot >= interval * 1000 then
+                                                    snoozestuff.Locals.LastShot = DateTime.now().UnixTimestampMillis
+                                                    snoozestuff.Locals.IsTriggerBotting = true
                                                     ActivateTool()
-                                                    Mango.Locals.IsTriggerBotting = false
+                                                    snoozestuff.Locals.IsTriggerBotting = false
                                                 end
                                             else
-                                                Mango.Locals.IsTriggerBotting = true
+                                                snoozestuff.Locals.IsTriggerBotting = true
                                                 ActivateTool()
-                                                Mango.Locals.IsTriggerBotting = false
+                                                snoozestuff.Locals.IsTriggerBotting = false
                                             end
                                         end
                                     end
@@ -3066,39 +3002,39 @@ LPH_JIT_MAX(function()
                             end
                             if CurrentGame.Name == "Da Hood" then
                                 if Check then
-                                    local interval = shared["F​F​l​a​g​A​X​C​o​m​b​i​n​e​G​e​t​O​u​t​f​i​t​D​i​s​p​a​t​c​h​e​s​I​X​P​2"]["TriggerBot"]['Interval'].Weapon[Tool.Name] or 0
-                                    if shared["F​F​l​a​g​A​X​C​o​m​b​i​n​e​G​e​t​O​u​t​f​i​t​D​i​s​p​a​t​c​h​e​s​I​X​P​2"]["TriggerBot"]['Interval']['Enabled'] then
-                                        if DateTime.now().UnixTimestampMillis - Mango.Locals.LastShot >= interval * 1000 then
-                                            Mango.Locals.LastShot = DateTime.now().UnixTimestampMillis
-                                            Mango.Locals.IsTriggerBotting = true
+                                    local interval = shared["snoozesaved"]["TriggerBot"]['Interval'].Weapon[Tool.Name] or 0
+                                    if shared["snoozesaved"]["TriggerBot"]['Interval']['Enabled'] then
+                                        if DateTime.now().UnixTimestampMillis - snoozestuff.Locals.LastShot >= interval * 1000 then
+                                            snoozestuff.Locals.LastShot = DateTime.now().UnixTimestampMillis
+                                            snoozestuff.Locals.IsTriggerBotting = true
                                             ActivateTool()
-                                            Mango.Locals.IsTriggerBotting = false
+                                            snoozestuff.Locals.IsTriggerBotting = false
                                         end
                                     else
-                                        Mango.Locals.IsTriggerBotting = true
+                                        snoozestuff.Locals.IsTriggerBotting = true
                                         ActivateTool()
-                                        Mango.Locals.IsTriggerBotting = false
+                                        snoozestuff.Locals.IsTriggerBotting = false
                                     end
                                 end
                             else
                                 local target = Mouse.Target
-                                local hitTrigger = Mango.Locals.HitTrigger
+                                local hitTrigger = snoozestuff.Locals.HitTrigger
                     
                                 if target and hitTrigger and target.Position and hitTrigger.Position then
                                     local point = Player.GetClosestPointOnPart(hitTrigger, 0.2)
-                                    if (target.Position - point).Magnitude <= shared["F​F​l​a​g​A​X​C​o​m​b​i​n​e​G​e​t​O​u​t​f​i​t​D​i​s​p​a​t​c​h​e​s​I​X​P​2"].Fields.TriggerBotField.Size then
-                                        local interval = shared["F​F​l​a​g​A​X​C​o​m​b​i​n​e​G​e​t​O​u​t​f​i​t​D​i​s​p​a​t​c​h​e​s​I​X​P​2"]["TriggerBot"]['Interval'].Weapon[Tool.Name] or 0
-                                        if shared["F​F​l​a​g​A​X​C​o​m​b​i​n​e​G​e​t​O​u​t​f​i​t​D​i​s​p​a​t​c​h​e​s​I​X​P​2"]["TriggerBot"]['Interval']['Enabled'] then
-                                            if DateTime.now().UnixTimestampMillis - Mango.Locals.LastShot >= interval * 1000 then
-                                                Mango.Locals.LastShot = DateTime.now().UnixTimestampMillis
-                                                Mango.Locals.IsTriggerBotting = true
+                                    if (target.Position - point).Magnitude <= shared["snoozesaved"].Fields.TriggerBotField.Size then
+                                        local interval = shared["snoozesaved"]["TriggerBot"]['Interval'].Weapon[Tool.Name] or 0
+                                        if shared["snoozesaved"]["TriggerBot"]['Interval']['Enabled'] then
+                                            if DateTime.now().UnixTimestampMillis - snoozestuff.Locals.LastShot >= interval * 1000 then
+                                                snoozestuff.Locals.LastShot = DateTime.now().UnixTimestampMillis
+                                                snoozestuff.Locals.IsTriggerBotting = true
                                                 ActivateTool()
-                                                Mango.Locals.IsTriggerBotting = false
+                                                snoozestuff.Locals.IsTriggerBotting = false
                                             end
                                         else
-                                            Mango.Locals.IsTriggerBotting = true
+                                            snoozestuff.Locals.IsTriggerBotting = true
                                             ActivateTool()
-                                            Mango.Locals.IsTriggerBotting = false
+                                            snoozestuff.Locals.IsTriggerBotting = false
                                         end
                                     end
                                 end
@@ -3108,31 +3044,31 @@ LPH_JIT_MAX(function()
                     end
                     
                     
-                    if shared["F​F​l​a​g​A​X​C​o​m​b​i​n​e​G​e​t​O​u​t​f​i​t​D​i​s​p​a​t​c​h​e​s​I​X​P​2"].TriggerBot.Field == 'Magnitude' then
+                    if shared["snoozesaved"].TriggerBot.Field == 'Magnitude' then
                          
                         local Position, OnScreen
-                        if shared["F​F​l​a​g​A​X​C​o​m​b​i​n​e​G​e​t​O​u​t​f​i​t​D​i​s​p​a​t​c​h​e​s​I​X​P​2"]["TriggerBot"]["Prediction"]['Enabled'] then 
-                            Position, OnScreen = Camera:WorldToViewportPoint(Mango.Locals.HitTrigger.Position + Mango.Locals.HitTrigger.Velocity * Vector3.new(shared["F​F​l​a​g​A​X​C​o​m​b​i​n​e​G​e​t​O​u​t​f​i​t​D​i​s​p​a​t​c​h​e​s​I​X​P​2"]["TriggerBot"]['Prediction'].Ground, shared["F​F​l​a​g​A​X​C​o​m​b​i​n​e​G​e​t​O​u​t​f​i​t​D​i​s​p​a​t​c​h​e​s​I​X​P​2"]["TriggerBot"]['Prediction'].Air, shared["F​F​l​a​g​A​X​C​o​m​b​i​n​e​G​e​t​O​u​t​f​i​t​D​i​s​p​a​t​c​h​e​s​I​X​P​2"]["TriggerBot"]['Prediction'].Ground))
+                        if shared["snoozesaved"]["TriggerBot"]["Prediction"]['Enabled'] then 
+                            Position, OnScreen = Camera:WorldToViewportPoint(snoozestuff.Locals.HitTrigger.Position + snoozestuff.Locals.HitTrigger.Velocity * Vector3.new(shared["snoozesaved"]["TriggerBot"]['Prediction'].Ground, shared["snoozesaved"]["TriggerBot"]['Prediction'].Air, shared["snoozesaved"]["TriggerBot"]['Prediction'].Ground))
                         else 
-                            Position, OnScreen = Camera:WorldToViewportPoint(Mango.Locals.HitTrigger.Position)
+                            Position, OnScreen = Camera:WorldToViewportPoint(snoozestuff.Locals.HitTrigger.Position)
                         end
                 
-                        local Resume = CheckMagnitudeFromMouse(Position, shared["F​F​l​a​g​A​X​C​o​m​b​i​n​e​G​e​t​O​u​t​f​i​t​D​i​s​p​a​t​c​h​e​s​I​X​P​2"]["TriggerBot"]["Magnitude"].Weapon[Tool.Name] or {X = 0, Y = 0})
+                        local Resume = CheckMagnitudeFromMouse(Position, shared["snoozesaved"]["TriggerBot"]["Magnitude"].Weapon[Tool.Name] or {X = 0, Y = 0})
                         
                         local Test = false
-                        if Test then --shared["F​F​l​a​g​A​X​C​o​m​b​i​n​e​G​e​t​O​u​t​f​i​t​D​i​s​p​a​t​c​h​e​s​I​X​P​2"].Conditions.Moving and Mango.Locals.TriggerbotTarget.Character.Humanoid.MoveDirection.Magnitude == 0 then 
+                        if Test then --shared["snoozesaved"].Conditions.Moving and snoozestuff.Locals.TriggerbotTarget.Character.Humanoid.MoveDirection.Magnitude == 0 then 
                             return
-                        elseif shared["F​F​l​a​g​A​X​C​o​m​b​i​n​e​G​e​t​O​u​t​f​i​t​D​i​s​p​a​t​c​h​e​s​I​X​P​2"]["TriggerBot"]['Interval'].Weapon[Tool.Name] then
+                        elseif shared["snoozesaved"]["TriggerBot"]['Interval'].Weapon[Tool.Name] then
                             if Resume then 
-                                if shared["F​F​l​a​g​A​X​C​o​m​b​i​n​e​G​e​t​O​u​t​f​i​t​D​i​s​p​a​t​c​h​e​s​I​X​P​2"]["TriggerBot"]['Interval']['Enabled'] and DateTime.now().UnixTimestampMillis - Mango.Locals.LastShot >= shared["F​F​l​a​g​A​X​C​o​m​b​i​n​e​G​e​t​O​u​t​f​i​t​D​i​s​p​a​t​c​h​e​s​I​X​P​2"]["TriggerBot"]['Interval'].Weapon[Tool.Name] * 1000 then 
-                                    Mango.Locals.LastShot = DateTime.now().UnixTimestampMillis
-                                    Mango.Locals.IsTriggerBotting = true
+                                if shared["snoozesaved"]["TriggerBot"]['Interval']['Enabled'] and DateTime.now().UnixTimestampMillis - snoozestuff.Locals.LastShot >= shared["snoozesaved"]["TriggerBot"]['Interval'].Weapon[Tool.Name] * 1000 then 
+                                    snoozestuff.Locals.LastShot = DateTime.now().UnixTimestampMillis
+                                    snoozestuff.Locals.IsTriggerBotting = true
                                     ActivateTool()
-                                    Mango.Locals.IsTriggerBotting = false
-                                elseif not shared["F​F​l​a​g​A​X​C​o​m​b​i​n​e​G​e​t​O​u​t​f​i​t​D​i​s​p​a​t​c​h​e​s​I​X​P​2"]["TriggerBot"]['Interval']['Enabled'] then 
-                                    Mango.Locals.IsTriggerBotting = true
+                                    snoozestuff.Locals.IsTriggerBotting = false
+                                elseif not shared["snoozesaved"]["TriggerBot"]['Interval']['Enabled'] then 
+                                    snoozestuff.Locals.IsTriggerBotting = true
                                     ActivateTool()
-                                    Mango.Locals.IsTriggerBotting = false
+                                    snoozestuff.Locals.IsTriggerBotting = false
                                 end 
                             end 
                         end
@@ -3141,19 +3077,15 @@ LPH_JIT_MAX(function()
             end
             
             local function AimAssist()
-                if shared["F​F​l​a​g​A​X​C​o​m​b​i​n​e​G​e​t​O​u​t​f​i​t​D​i​s​p​a​t​c​h​e​s​I​X​P​2"].AimAssist.Enabled then
-                    if not shared["F​F​l​a​g​A​X​C​o​m​b​i​n​e​G​e​t​O​u​t​f​i​t​D​i​s​p​a​t​c​h​e​s​I​X​P​2"].AimAssist.Sticky then
-                        Mango.Locals.AimAssistTarget = Player.GetClosestPlayerToCursor()
+                if shared["snoozesaved"].AimAssist.Enabled then
+                    if not shared["snoozesaved"].AimAssist.Sticky then
+                        snoozestuff.Locals.AimAssistTarget = Player.GetClosestPlayerToCursor()
                     end
     
                     local Smoothness
-                    local Conditions = shared["F​F​l​a​g​A​X​C​o​m​b​i​n​e​G​e​t​O​u​t​f​i​t​D​i​s​p​a​t​c​h​e​s​I​X​P​2"].Conditions
-                    local Target = Mango.Locals.AimAssistTarget
+                    local Conditions = shared["snoozesaved"].Conditions
+                    local Target = snoozestuff.Locals.AimAssistTarget
                     if Target and Target.Character then
-                        --[[
-                        if Conditions.Moving and Target.Character.Humanoid.MoveDirection.Magnitude == 0 then
-                            return
-                        end]]
     
                         if Conditions.Wall and not Engine.RayCast(Target.Character.HumanoidRootPart, Player.GetOrigin('Camera'), {Self.Character}) then
                             return
@@ -3183,7 +3115,7 @@ LPH_JIT_MAX(function()
     
 
     
-                        local FOVSize = shared["F​F​l​a​g​A​X​C​o​m​b​i​n​e​G​e​t​O​u​t​f​i​t​D​i​s​p​a​t​c​h​e​s​I​X​P​2"].Fields.AimAssistField.Size
+                        local FOVSize = shared["snoozesaved"].Fields.AimAssistField.Size
                         local MousePosition = Vector2.new(Mouse.X, Mouse.Y)
                         local Magnitude = (Vector2.new(Position.X, Position.Y) - MousePosition).Magnitude
     
@@ -3197,13 +3129,13 @@ LPH_JIT_MAX(function()
     
                         local State = Target.Character.Humanoid:GetState()
     
-                        if not shared["F​F​l​a​g​A​X​C​o​m​b​i​n​e​G​e​t​O​u​t​f​i​t​D​i​s​p​a​t​c​h​e​s​I​X​P​2"].AimAssist.Smoothing.Enabled then
+                        if not shared["snoozesaved"].AimAssist.Smoothing.Enabled then
                             Smoothness = 1
                         else
                             if State == Enum.HumanoidStateType.Jumping or State == Enum.HumanoidStateType.Freefall then
-                                Smoothness = shared["F​F​l​a​g​A​X​C​o​m​b​i​n​e​G​e​t​O​u​t​f​i​t​D​i​s​p​a​t​c​h​e​s​I​X​P​2"].AimAssist.Smoothing.Air
+                                Smoothness = shared["snoozesaved"].AimAssist.Smoothing.Air
                             else
-                                Smoothness = shared["F​F​l​a​g​A​X​C​o​m​b​i​n​e​G​e​t​O​u​t​f​i​t​D​i​s​p​a​t​c​h​e​s​I​X​P​2"].AimAssist.Smoothing.Ground
+                                Smoothness = shared["snoozesaved"].AimAssist.Smoothing.Ground
                             end
                         end
     
@@ -3257,28 +3189,28 @@ LPH_JIT_MAX(function()
                     if RootPart and Character:IsDescendantOf(Workspace) then
 
 
-                        if shared["F​F​l​a​g​A​X​C​o​m​b​i​n​e​G​e​t​O​u​t​f​i​t​D​i​s​p​a​t​c​h​e​s​I​X​P​2"].Conditions.Wall then
+                        if shared["snoozesaved"].Conditions.Wall then
                             if not Engine.RayCast(RootPart, Player.GetOrigin('Camera'), {LocalPlayer.Character}) then
                                 continue
                             end
                         end
                 
                         -- Forcefield Check
-                        if shared["F​F​l​a​g​A​X​C​o​m​b​i​n​e​G​e​t​O​u​t​f​i​t​D​i​s​p​a​t​c​h​e​s​I​X​P​2"].Conditions.Forcefield then
+                        if shared["snoozesaved"].Conditions.Forcefield then
                             if Character:FindFirstChild("ForceField") then
                                 continue
                             end
                         end
                 
                         -- Knocked Check
-                        if shared["F​F​l​a​g​A​X​C​o​m​b​i​n​e​G​e​t​O​u​t​f​i​t​D​i​s​p​a​t​c​h​e​s​I​X​P​2"].Conditions.Knocked then
+                        if shared["snoozesaved"].Conditions.Knocked then
                             if Player.IsKnocked(Character) then
                                 continue
                             end
                         end
                 
                         -- Grabbed Check
-                        if shared["F​F​l​a​g​A​X​C​o​m​b​i​n​e​G​e​t​O​u​t​f​i​t​D​i​s​p​a​t​c​h​e​s​I​X​P​2"].Conditions.Grabbed then
+                        if shared["snoozesaved"].Conditions.Grabbed then
                             if Player.IsGrabbed(Character) then
                                 continue
                             end
@@ -3326,152 +3258,9 @@ LPH_JIT_MAX(function()
                 end
             end
 
-            --[[
-                        local function DrawESP()
-                local Script = shared["F​F​l​a​g​A​X​C​o​m​b​i​n​e​G​e​t​O​u​t​f​i​t​D​i​s​p​a​t​c​h​e​s​I​X​P​2"]
-                local RAID_Enabled = Script["Raid Awareness"].Enabled
-                local Priority = Environment.Priority
-                local CanDraw = true
-                --
-                if RAID_Enabled then
-                    for i = #Priority, 1, -1 do
-                        local Player = Priority[i]
-                        if not Player or not Player.Character then
-                            Lithium:ClearPlayerData(Player)
-                        else
-                            local RootPart = Player.Character and Player.Character:FindFirstChild('HumanoidRootPart')
-                            if not RootPart then
-                                return
-                            end
-                            --
-                            if not Client or not Client.Character then
-                                return
-                            end
-                            --
-                            local Distance = Client.Character.HumanoidRootPart and (RootPart.Position - Client.Character.HumanoidRootPart.Position).Magnitude or 0
-                            local Position, Visible = Camera:WorldToViewportPoint(RootPart.Position)
-                            local CharacterSize = (Camera:WorldToViewportPoint(RootPart.Position - Vector3new(0, 3, 0)).Y -
-                                                   Camera:WorldToViewportPoint(RootPart.Position + Vector3new(0, 2.6, 0)).Y) / 2
-                            
-                            local Flag = not Lithium:IsFriendly(Player) and getgenv().Script.Visuals['Specific ESP'].AllyColor or getgenv().Script.Visuals['Specific ESP'].EnemyColor
-                            local Box = true
-                            if Box then
-                                if not Table.Corners[Player] then
-                                    Table.Corners[Player] = {}
-                                    for i = 1, 8 do
-                                        Table.Corners[Player][i] = Overlay.new('Line')
-                                        Table.Corners[Player][i].Thickness = 1
-                                        Table.Corners[Player][i].Transparency = 1
-                                        Table.Corners[Player][i].Color = Flag
-                                    end
-                                end
-                                local BoxWidth = Floor(CharacterSize * 1.1)
-                                local BoxHeight = Floor(CharacterSize * 1.9)
-                                local BoxPosition = Vector2new(Position.X - BoxWidth / 2, Position.Y - BoxHeight / 2)
-            
-                                local L_Width = (BoxWidth / 5)
-                                local L_Height = (BoxHeight / 6)
-                                local L_T = 2
-            
-                                -- Top left
-                                Table.Corners[Player][1].From = Vector2new(BoxPosition.X - L_T, BoxPosition.Y - L_T)
-                                Table.Corners[Player][1].To = Vector2new(BoxPosition.X + L_Width, BoxPosition.Y - L_T)
-            
-                                Table.Corners[Player][2].From = Vector2new(BoxPosition.X - L_T, BoxPosition.Y - L_T)
-                                Table.Corners[Player][2].To = Vector2new(BoxPosition.X - L_T, BoxPosition.Y + L_Height)
-            
-                                -- Top right
-                                Table.Corners[Player][3].From = Vector2new(BoxPosition.X + BoxWidth - L_Width, BoxPosition.Y - L_T)
-                                Table.Corners[Player][3].To = Vector2new(BoxPosition.X + BoxWidth + L_T, BoxPosition.Y - L_T)
-            
-                                Table.Corners[Player][4].From = Vector2new(BoxPosition.X + BoxWidth + L_T, BoxPosition.Y - L_T)
-                                Table.Corners[Player][4].To = Vector2new(BoxPosition.X + BoxWidth + L_T, BoxPosition.Y + L_Height)
-            
-                                -- Bottom left
-                                Table.Corners[Player][5].From = Vector2new(BoxPosition.X - L_T, BoxPosition.Y + BoxHeight - L_Height)
-                                Table.Corners[Player][5].To = Vector2new(BoxPosition.X - L_T, BoxPosition.Y + BoxHeight + L_T)
-            
-                                Table.Corners[Player][6].From = Vector2new(BoxPosition.X - L_T, BoxPosition.Y + BoxHeight + L_T)
-                                Table.Corners[Player][6].To = Vector2new(BoxPosition.X + L_Width, BoxPosition.Y + BoxHeight + L_T)
-            
-                                -- Bottom right
-                                Table.Corners[Player][7].From = Vector2new(BoxPosition.X + BoxWidth - L_Width, BoxPosition.Y + BoxHeight + L_T)
-                                Table.Corners[Player][7].To = Vector2new(BoxPosition.X + BoxWidth + L_T, BoxPosition.Y + BoxHeight + L_T)
-            
-                                Table.Corners[Player][8].From = Vector2new(BoxPosition.X + BoxWidth + L_T, BoxPosition.Y + BoxHeight + L_T)
-                                Table.Corners[Player][8].To = Vector2new(BoxPosition.X + BoxWidth + L_T, BoxPosition.Y + BoxHeight - L_Height)
-            
-                                for _, Line in ipairs(Table.Corners[Player]) do
-                                    Line.Visible = CanDraw and Visible
-                                    Line.Color = Flag
-                                    Line.Transparency = getgenv().Script.Visuals['Specific ESP'].Transparency
-                                    Line.Thickness = getgenv().Script.Visuals['Specific ESP'].Thickness
-                                end
-                            end
-                            --
-                            if Modules.Name.Visible then
-                                local Text = Table.Texts[Player]
-                                if not Text then
-                                    Text = Overlay.new('Text')
-                                    Text.Size = Modules.Name.Size
-                                    Text.Outline = Modules.Name.Outline
-                                    Text.OutlineColor = Modules.Name.OutlineColor
-                                    Text.Color = Flag
-                                    Text.Center = true
-                                    Text.Transparency = Modules.Name.Transparency
-                                    Table.Texts[Player] = Text
-                                end
-                                local boxSize = Vector2new(Floor(CharacterSize * 1.8), Floor(CharacterSize * 1.9))
-                                local boxPosition = Vector2new(Floor(Position.X - CharacterSize * 1.8 / 2), Floor(Position.Y - CharacterSize * 1.6 / 2))
-                                   
-                                Text.Visible = CanDraw and Visible or false
-                                Text.Text = Player.DisplayName
-                                Text.Position = Vector2new(boxPosition.X + boxSize.X / 2, boxPosition.Y + boxSize.Y + 5)
-                            end
-                            --
-                            if Modules.Distance.Visible then
-                                local Text = Table.Distance[Player]
-                                if not Text then
-                                    Text = Overlay.new('Text')
-                                    Text.Size = Modules.Distance.Size
-                                    Text.Outline = Modules.Distance.Outline
-                                    Text.OutlineColor = Modules.Distance.OutlineColor
-                                    Text.Color = Flag
-                                    Text.Center = true
-                                    Text.Transparency = Modules.Distance.Transparency
-                                    Table.Distance[Player] = Text
-                                end
-                                local boxSize = Vector2new(Floor(CharacterSize * 1.8), Floor(CharacterSize * 1.9))
-                                local boxPosition = Vector2new(Floor(Position.X - CharacterSize * 1.8 / 2), Floor(Position.Y - CharacterSize * 1.6 / 2))
-                                   
-                                Text.Visible = CanDraw and Visible or false
-                                Text.Text = tostring(Floor(Distance)) .. ' std'
-                                Text.Position = Vector2new(boxPosition.X + boxSize.X / 2, boxPosition.Y + boxSize.Y + 15)
-                            end
-                        end
-                    end
-                else
-                    for _, lines in pairs(Table.Corners) do
-                        for _, Line in ipairs(lines) do
-                            Line:Remove()
-                        end
-                    end
-                    for _, lines in pairs(Table.Outlines) do
-                        for _, Line in ipairs(lines) do
-                            Line:Remove()
-                        end
-                    end
-                    Table.Outlines = {}
-                    Table.Corners = {}
-                    Table.Distance = {}
-                    Table.Texts = {}
-                    Raid.Players = {}
-                end
-            end]]
-
             local function RaidAwareness()
-                local Script = shared["F​F​l​a​g​A​X​C​o​m​b​i​n​e​G​e​t​O​u​t​f​i​t​D​i​s​p​a​t​c​h​e​s​I​X​P​2"]
-                local RAID_Enabled = Script["Raid Awareness"].Enabled
+                local Script = shared["snoozesaved"]
+                local RAID_Enabled = Script["Target ESP"].Enabled
                 local Priority = Environment.Priority
             
                 if RAID_Enabled then
@@ -3521,7 +3310,7 @@ LPH_JIT_MAX(function()
                         local IsAlly = IsFriendly(Player)
                         local Color = IsAlly and Color3.fromRGB(255, 255, 255) or Color3.fromRGB(0, 255, 0)
  
-                        if Script["Raid Awareness"]["Name"] then
+                        if Script["Target ESP"]["Name"] then
                             local Text = Environment.PriorityTexts[Player]
                             if not Text then
                                 Text = Overlay.new("Text")
@@ -3534,15 +3323,15 @@ LPH_JIT_MAX(function()
                                 Environment.PriorityTexts[Player] = Text
                             end
             
-                            local displayName = string.format('<font color="rgb(173,216,230)">%s</font>', Player.DisplayName) -- Light Blue
-                            local playerName = string.format('<font color="rgb(255,255,255)">(%s)</font>', Player.Name) -- White
+                            local displayName = string.format('<font color="rgba(150, 0, 0, 0.47)">%s</font>', Player.DisplayName) -- Light Blue
+                            local playerName = string.format('<font color="rgba(167, 1, 1, 1)">(%s)</font>', Player.Name) -- White
                             
                             Text.Text = displayName .. " " .. playerName
                             Text.Position = Vector2.new(Position.X, Position.Y - h / 2 - 16)
                             Text.Visible = Visible
                         end
             
-                        if Script["Raid Awareness"]["Name"] then
+                        if Script["Target ESP"]["Name"] then
                             local Label = Environment.PriorityLabels[Player]
                             if not Label then
                                 Label = Overlay.new("Text")
@@ -3554,14 +3343,14 @@ LPH_JIT_MAX(function()
                                 Environment.PriorityLabels[Player] = Label
                             end
             
-                            local statusText = not IsAlly and '<font color="rgb(0,255,255)">Friendly</font>' or '<font color="rgb(255,0,0)">Enemy</font>'
+                            local statusText = not IsAlly and '<font color="rgba(255, 255, 255, 1)">Friendly</font>' or '<font color="rgb(255,0,0)">Enemy</font>'
                             Label.Text = statusText
                             Label.Position = Vector2.new(Position.X, Position.Y + h / 2 + 1)
                             Label.Visible = Visible
                         end
         
 
-                        if Script["Raid Awareness"]["Box"] then
+                        if Script["Target ESP"]["Box"] then
                             local Square = Environment.PrioritySquares[Player]
                             if not Square then
                                 Square = Overlay.new("Square")
@@ -3639,20 +3428,20 @@ local SP2 = false
 do
     ScreenGui.Setup()
     Utility.Connection(UserInputService.InputBegan, function(Input, Processed)
-        if shared["F​F​l​a​g​A​X​C​o​m​b​i​n​e​G​e​t​O​u​t​f​i​t​D​i​s​p​a​t​c​h​e​s​I​X​P​2"].Conditions.Typing and UserInputService:GetFocusedTextBox() then return end
-        local WalkSpeed = Enum.KeyCode[shared["F​F​l​a​g​A​X​C​o​m​b​i​n​e​G​e​t​O​u​t​f​i​t​D​i​s​p​a​t​c​h​e​s​I​X​P​2"].Physics.Walking.Toggle:upper()]
-        local SilentAim = Enum.KeyCode[shared["F​F​l​a​g​A​X​C​o​m​b​i​n​e​G​e​t​O​u​t​f​i​t​D​i​s​p​a​t​c​h​e​s​I​X​P​2"].SilentAim.Toggle:upper()]
-        local AimAssist = Enum.KeyCode[shared["F​F​l​a​g​A​X​C​o​m​b​i​n​e​G​e​t​O​u​t​f​i​t​D​i​s​p​a​t​c​h​e​s​I​X​P​2"].AimAssist.Toggle:upper()]
-        local DoubleTap = Enum.KeyCode[shared["F​F​l​a​g​A​X​C​o​m​b​i​n​e​G​e​t​O​u​t​f​i​t​D​i​s​p​a​t​c​h​e​s​I​X​P​2"].Modifications['Double Tap'].Toggle:upper()]
-        local RaidAwareness = Enum.KeyCode[shared["F​F​l​a​g​A​X​C​o​m​b​i​n​e​G​e​t​O​u​t​f​i​t​D​i​s​p​a​t​c​h​e​s​I​X​P​2"]["Raid Awareness"]['Select']:upper()]
-        local RaidAwarenessHide = Enum.KeyCode[shared["F​F​l​a​g​A​X​C​o​m​b​i​n​e​G​e​t​O​u​t​f​i​t​D​i​s​p​a​t​c​h​e​s​I​X​P​2"]["Raid Awareness"]['Clear']:upper()]
+        if shared["snoozesaved"].Conditions.Typing and UserInputService:GetFocusedTextBox() then return end
+        local WalkSpeed = Enum.KeyCode[shared["snoozesaved"].Physics.Walking.Toggle:upper()]
+        local SilentAim = Enum.KeyCode[shared["snoozesaved"].SilentAim.Toggle:upper()]
+        local AimAssist = Enum.KeyCode[shared["snoozesaved"].AimAssist.Toggle:upper()]
+        local DoubleTap = Enum.KeyCode[shared["snoozesaved"].Modifications['Double Tap'].Toggle:upper()]
+        local RaidAwareness = Enum.KeyCode[shared["snoozesaved"]["Target ESP"]['Select']:upper()]
+        local RaidAwarenessHide = Enum.KeyCode[shared["snoozesaved"]["Target ESP"]['Clear']:upper()]
 
         if Input.KeyCode == WalkSpeed then
-            Mango.Locals.IsWalkSpeeding = not Mango.Locals.IsWalkSpeeding
+            snoozestuff.Locals.IsWalkSpeeding = not snoozestuff.Locals.IsWalkSpeeding
         end
 
         if Input.KeyCode == DoubleTap then
-            Mango.Locals.IsDoubleTapping = not Mango.Locals.IsDoubleTapping
+            snoozestuff.Locals.IsDoubleTapping = not snoozestuff.Locals.IsDoubleTapping
         end
 
         if (Input.KeyCode == RaidAwareness) then
@@ -3664,90 +3453,87 @@ do
         end
 
 
-        if Input.KeyCode == AimAssist and shared["F​F​l​a​g​A​X​C​o​m​b​i​n​e​G​e​t​O​u​t​f​i​t​D​i​s​p​a​t​c​h​e​s​I​X​P​2"].AimAssist.Sticky then
+        if Input.KeyCode == AimAssist and shared["snoozesaved"].AimAssist.Sticky then
             SP2 = not SP2
             if SP2 then
-                Mango.Locals.AimAssistTarget = Player.GetClosestPlayerToCursor()
+                snoozestuff.Locals.AimAssistTarget = Player.GetClosestPlayerToCursor()
             else
-                if Mango.Locals.AimAssistTarget then
-                    Mango.Locals.AimAssistTarget = nil
+                if snoozestuff.Locals.AimAssistTarget then
+                    snoozestuff.Locals.AimAssistTarget = nil
                 end
             end
         end
 
-        if Input.KeyCode == SilentAim and shared["F​F​l​a​g​A​X​C​o​m​b​i​n​e​G​e​t​O​u​t​f​i​t​D​i​s​p​a​t​c​h​e​s​I​X​P​2"].SilentAim.Mode == "Target" then
+        if Input.KeyCode == SilentAim and shared["snoozesaved"].SilentAim.Mode == "Target" then
             SP = not SP
             if SP then
-                Mango.Locals.SilentAimTarget = Player.GetClosestPlayerToCursor()
+                snoozestuff.Locals.SilentAimTarget = Player.GetClosestPlayerToCursor()
             else
-                if Mango.Locals.SilentAimTarget then
-                    Mango.Locals.SilentAimTarget = nil
+                if snoozestuff.Locals.SilentAimTarget then
+                    snoozestuff.Locals.SilentAimTarget = nil
                 end
             end
         end
 
-        local triggerConfig = shared["F​F​l​a​g​A​X​C​o​m​b​i​n​e​G​e​t​O​u​t​f​i​t​D​i​s​p​a​t​c​h​e​s​I​X​P​2"].TriggerBot
+        local triggerConfig = shared["snoozesaved"].TriggerBot
         local isMouseInput = triggerConfig.Input == 'Mouse'
         local isKeyboardInput = triggerConfig.Input == 'Keyboard'
         local toggleKey = triggerConfig.Toggle
 
         if isMouseInput and Input.UserInputType == Enum.UserInputType[toggleKey] then
             if triggerConfig.Type == "Toggle" then
-                Mango.Locals.TriggerState = not Mango.Locals.TriggerState
+                snoozestuff.Locals.TriggerState = not snoozestuff.Locals.TriggerState
             elseif triggerConfig.Type == "Hold" then
-                Mango.Locals.TriggerState = true
+                snoozestuff.Locals.TriggerState = true
             end
         elseif isKeyboardInput and Input.KeyCode == Enum.KeyCode[toggleKey:upper()] then
             if triggerConfig.Type == "Toggle" then
-                Mango.Locals.TriggerState = not Mango.Locals.TriggerState
+                snoozestuff.Locals.TriggerState = not snoozestuff.Locals.TriggerState
             elseif triggerConfig.Type == "Hold" then
-                Mango.Locals.TriggerState = true
+                snoozestuff.Locals.TriggerState = true
             end
         end
     end)
     Utility.Connection(UserInputService.InputEnded, function(Input, Processed)
-        if shared["F​F​l​a​g​A​X​C​o​m​b​i​n​e​G​e​t​O​u​t​f​i​t​D​i​s​p​a​t​c​h​e​s​I​X​P​2"].Conditions.Typing and UserInputService:GetFocusedTextBox() then return end
-        local triggerConfig = shared["F​F​l​a​g​A​X​C​o​m​b​i​n​e​G​e​t​O​u​t​f​i​t​D​i​s​p​a​t​c​h​e​s​I​X​P​2"].TriggerBot
+        if shared["snoozesaved"].Conditions.Typing and UserInputService:GetFocusedTextBox() then return end
+        local triggerConfig = shared["snoozesaved"].TriggerBot
         local isMouseInput = triggerConfig.Input == 'Mouse'
         local isKeyboardInput = triggerConfig.Input == 'Keyboard'
         local toggleKey = triggerConfig.Toggle
 
         if triggerConfig.Type == "Hold" then
             if isMouseInput and Input.UserInputType == Enum.UserInputType[toggleKey] then
-                Mango.Locals.TriggerState = false
+                snoozestuff.Locals.TriggerState = false
             elseif isKeyboardInput and Input.KeyCode == Enum.KeyCode[toggleKey:upper()] then
-                Mango.Locals.TriggerState = false
+                snoozestuff.Locals.TriggerState = false
             end
         end
     end)
     Utility.ThreadLoop(0, function()
-        if shared["F​F​l​a​g​A​X​C​o​m​b​i​n​e​G​e​t​O​u​t​f​i​t​D​i​s​p​a​t​c​h​e​s​I​X​P​2"].SilentAim.Mode == "Automatic" then
-            Mango.Locals.SilentAimTarget = Player.GetClosestPlayerToCursor()
+        if shared["snoozesaved"].SilentAim.Mode == "Automatic" then
+            snoozestuff.Locals.SilentAimTarget = Player.GetClosestPlayerToCursor()
         end
-        Mango.Locals.TriggerbotTarget = Player.GetClosestPlayerToCursor()
-        if Mango.Locals.TriggerbotTarget then
-            if Mango.Locals.TriggerbotTarget.Character then
-                Mango.Locals.HitTrigger = Player.GetClosestPartToCursor(Mango.Locals.TriggerbotTarget.Character)
+        snoozestuff.Locals.TriggerbotTarget = Player.GetClosestPlayerToCursor()
+        if snoozestuff.Locals.TriggerbotTarget then
+            if snoozestuff.Locals.TriggerbotTarget.Character then
+                snoozestuff.Locals.HitTrigger = Player.GetClosestPartToCursor(snoozestuff.Locals.TriggerbotTarget.Character)
             end
         end
         ScreenGui.UpdateDrawings()
     end)
     Utility.Connection(RunService.PreRender, LPH_NO_VIRTUALIZE(function()
-        if Mango.Locals.SilentAimTarget and Mango.Locals.SilentAimTarget.Character then
+        if snoozestuff.Locals.SilentAimTarget and snoozestuff.Locals.SilentAimTarget.Character then
             Player.GetHitPosition("Silent")
         end
-        --Utility.ThreadFunction(Main.AimAssist)
-        --Utility.ThreadFunction(Main.TriggerBot)
         Main.AimAssist()
         Main.TriggerBot()
         Player.AutomatedPrediction()
         Main.UpdateBox()
-        --Utility.ThreadFunction(Player.AutomatedPrediction)
     end))
     Utility.Connection(RunService.PreRender, LPH_NO_VIRTUALIZE(function()
         Utility.ThreadFunction(Player.SelfMods)
         Utility.ThreadFunction(Main.RaidAwareness)
-        if shared["F​F​l​a​g​A​X​C​o​m​b​i​n​e​G​e​t​O​u​t​f​i​t​D​i​s​p​a​t​c​h​e​s​I​X​P​2"].SilentAim.Enabled and CurrentGame.Name == "Da Hood" then
+        if shared["snoozesaved"].SilentAim.Enabled and CurrentGame.Name == "Da Hood" then
             local GunType = Main.GetGunCategory()
             local Tool = Self.Character:FindFirstChildWhichIsA("Tool")
             if Tool then
@@ -3755,42 +3541,42 @@ do
                     for I, v in pairs(Tool:GetChildren()) do
                         if v.Name == "GunClient" then
                             v:Destroy()
-                            --v.Disabled = Mango.Locals.GunScriptDisabled
+                            --v.Disabled = snoozestuff.Locals.GunScriptDisabled
                         end
                     end
                 elseif GunType == "Shotgun" then
                     for I, v in pairs(Tool:GetChildren()) do
                         if v.Name == "GunClientShotgun" then
                             v:Destroy()
-                            --v.Disabled = Mango.Locals.GunScriptDisabled
+                            --v.Disabled = snoozestuff.Locals.GunScriptDisabled
                         end
                     end
                 elseif GunType == "Auto" then
                     for I, v in pairs(Tool:GetChildren()) do
                         if v.Name == "GunClientAutomaticShotgun" then
                             v:Destroy()
-                            --v.Disabled = Mango.Locals.GunScriptDisabled
+                            --v.Disabled = snoozestuff.Locals.GunScriptDisabled
                         end
                     end
                 elseif GunType == "Burst" then
                     for I, v in pairs(Tool:GetChildren()) do
                         if v.Name == "GunClientBurst" then
                             v:Destroy()
-                            --v.Disabled = Mango.Locals.GunScriptDisabled
+                            --v.Disabled = snoozestuff.Locals.GunScriptDisabled
                         end
                     end
                 elseif GunType == "Rifle" or GunType == "SMG" then
                     for I, v in pairs(Tool:GetChildren()) do
                         if v.Name == "GunClientAutomatic" then
                             v:Destroy()
-                            --v.Disabled = Mango.Locals.GunScriptDisabled
+                            --v.Disabled = snoozestuff.Locals.GunScriptDisabled
                         end
                     end
                 end    
             end
         end
     end))
-    if CurrentGame.Name == 'Dee Hood' and CurrentGame.Updater == nil then
+    --[[if CurrentGame.Name == 'Dee Hood' and CurrentGame.Updater == nil then
         local function GetArgument() 
             for _, Player in next, game:GetService("Players"):GetPlayers() do
                 if Player.Backpack:GetAttribute(string.upper("muv")) then
@@ -3805,8 +3591,8 @@ do
         if Argument then
             CurrentGame.Updater = Argument
         end
-    end
-    if shared["F​F​l​a​g​A​X​C​o​m​b​i​n​e​G​e​t​O​u​t​f​i​t​D​i​s​p​a​t​c​h​e​s​I​X​P​2"].Physics.Jumping.Enabled then
+    end]]
+    if shared["snoozesaved"].Physics.Jumping.Enabled then
         local function disableJumpPower(character)
             character:WaitForChild("Humanoid").UseJumpPower = false
         end
@@ -3816,7 +3602,7 @@ do
             disableJumpPower(Self.Character)
         end
     end        
-    if shared["F​F​l​a​g​A​X​C​o​m​b​i​n​e​G​e​t​O​u​t​f​i​t​D​i​s​p​a​t​c​h​e​s​I​X​P​2"].SilentAim.Enabled then
+    if shared["snoozesaved"].SilentAim.Enabled then
         local Connections = {}
         local function connectTool(tool)
             if tool:IsA("Tool") and not Connections[tool] then
