@@ -1,8 +1,8 @@
-if _G.SessionStarted then 
-    shared._configUpdated = true
+if _G.Loaded then 
+    shared.update = true
     return
 end
-_G.SessionStarted = true
+_G.Loaded = true
 local function executeSafely(delegate) return delegate end;
 if not checkcaller then checkcaller = function() return false end end
 local PlayerService = game:GetService("Players")
@@ -54,7 +54,7 @@ local function ResetVisualNodes()
     if ZoneTrigger then ZoneTrigger:Destroy(); ZoneTrigger = nil end
 end
 local function ProcessUIUpdate()
-    if shared._configUpdated then shared._configUpdated = false end
+    if shared.updated then shared.updated = false end
     local configParams = MainConfig.Info
     UserLayer.Enabled = configParams.Enabled
     if not configParams.Enabled then return end
