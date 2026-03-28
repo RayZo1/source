@@ -106,7 +106,7 @@ local function clearmesh(tool, exclude)
     end
 end
 
-local function applygun(tool, name)
+--[[local function applygun(tool, name)
     local orig = tool:FindFirstChildOfClass("MeshPart")
     if not orig then return end
 
@@ -356,11 +356,11 @@ local function applyknife(char, tool, skin)
     end
 
     tool:SetAttribute("CurrentKnifeSkin", skin)
-end
+end]]
 
 local toolregistry = {}
 
-local function setuptool(tool)
+--[[local function setuptool(tool)
     if not tool:IsA("Tool") then return end
     if toolregistry[tool] then return end
     toolregistry[tool] = true
@@ -427,7 +427,7 @@ local function setuptool(tool)
             end
         end
     end
-end
+end]]
 
 local function watchchar(char)
     if not char then return end
@@ -435,12 +435,12 @@ local function watchchar(char)
     for i = 1, #children do
         local v = children[i]
         if v:IsA("Tool") then
-            setuptool(v)
+            --setuptool(v)
         end
     end
     char.ChildAdded:Connect(function(v)
         if v:IsA("Tool") then
-            setuptool(v)
+            --setuptool(v)
         end
     end)
 end
@@ -1446,13 +1446,13 @@ local backpacktools = localplayer.Backpack:GetChildren()
 for i = 1, #backpacktools do
     local v = backpacktools[i]
     if v:IsA("Tool") then
-        setuptool(v)
+        --setuptool(v)
     end
 end
 
 localplayer.Backpack.ChildAdded:Connect(function(v)
     if v:IsA("Tool") then
-        setuptool(v)
+        --setuptool(v)
     end
 end)
 
